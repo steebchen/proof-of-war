@@ -1,0 +1,38 @@
+{
+  "name": "clash-prototype-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dojoengine/core": "^1.0.4",
+    "@dojoengine/sdk": "^1.0.4",
+    "@dojoengine/torii-client": "^1.0.4",
+    "@starknet-react/chains": "^3.0.0",
+    "@starknet-react/core": "^3.0.0",
+    "get-starknet-core": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "starknet": "^6.17.0",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.12",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-top-level-await": "^1.4.4",
+    "vite-plugin-wasm": "^3.3.0"
+  }
+}
