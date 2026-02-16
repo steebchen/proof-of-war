@@ -554,26 +554,24 @@ export function VillageGrid() {
       const cursorX = e.clientX - rect.left
       const cursorY = e.clientY - rect.top
 
-      const oldZoom = zoomRef.current
-      const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomDelta))
-      const ratio = newZoom / oldZoom
-
-      // Zoom toward cursor: adjust pan so the point under cursor stays fixed
       const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
-      const oldCenterX = canvasSize.w / 2 + panRef.current.x
-      const oldCenterY = canvasSize.h / 2 + panRef.current.y
-      const newCenterX = cursorX + ratio * (oldCenterX - cursorX)
-      const newCenterY = cursorY + ratio * (oldCenterY - cursorY)
-      // Adjust pan to account for baseScale centering shift between old and new zoom
-      const oldBaseTx = (canvasSize.w - ISO_CANVAS_W * baseScale * oldZoom) / 2
-      const newBaseTx = (canvasSize.w - ISO_CANVAS_W * baseScale * newZoom) / 2
-      const oldBaseTy = (canvasSize.h - ISO_CANVAS_H * baseScale * oldZoom) / 2
-      const newBaseTy = (canvasSize.h - ISO_CANVAS_H * baseScale * newZoom) / 2
+      const oldZoom = zoomRef.current
+      const oldScale = baseScale * oldZoom
+      const oldTx = (canvasSize.w - ISO_CANVAS_W * oldScale) / 2 + panRef.current.x
+      const oldTy = (canvasSize.h - ISO_CANVAS_H * oldScale) / 2 + panRef.current.y
 
+      // Logical point under cursor
+      const logX = (cursorX - oldTx) / oldScale
+      const logY = (cursorY - oldTy) / oldScale
+
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomFactor))
+      const newScale = baseScale * newZoom
+
+      // Solve for new pan so cursor stays over the same logical point
       panRef.current = {
-        x: panRef.current.x + (newCenterX - oldCenterX) - (newBaseTx - oldBaseTx),
-        y: panRef.current.y + (newCenterY - oldCenterY) - (newBaseTy - oldBaseTy),
+        x: cursorX - logX * newScale - (canvasSize.w - ISO_CANVAS_W * newScale) / 2,
+        y: cursorY - logY * newScale - (canvasSize.h - ISO_CANVAS_H * newScale) / 2,
       }
       zoomRef.current = newZoom
       setCamTick((t) => t + 1)
