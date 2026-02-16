@@ -103,7 +103,7 @@ export class DevConnector extends Connector {
           calldata: call.calldata,
         }))
         // Skip fee estimation for dev mode (Katana with --dev.no-fee)
-        const result = await this._account.execute(transformedCalls, { skipValidate: true, maxFee: 0n })
+        const result = await this._account.execute(transformedCalls, { skipValidate: true } as any)
         return { transaction_hash: result.transaction_hash }
       }
 

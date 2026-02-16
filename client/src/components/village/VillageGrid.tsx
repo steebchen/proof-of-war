@@ -548,36 +548,37 @@ export function VillageGrid() {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    const zoomAtCursor = (cursorX: number, cursorY: number, zoomFactor: number) => {
+      const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
+      const oldZoom = zoomRef.current
+      const oldScale = baseScale * oldZoom
+      const oldTx = (canvasSize.w - ISO_CANVAS_W * oldScale) / 2 + panRef.current.x
+      const oldTy = (canvasSize.h - ISO_CANVAS_H * oldScale) / 2 + panRef.current.y
+
+      const logX = (cursorX - oldTx) / oldScale
+      const logY = (cursorY - oldTy) / oldScale
+
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomFactor))
+      const newScale = baseScale * newZoom
+
+      panRef.current = {
+        x: cursorX - logX * newScale - (canvasSize.w - ISO_CANVAS_W * newScale) / 2,
+        y: cursorY - logY * newScale - (canvasSize.h - ISO_CANVAS_H * newScale) / 2,
+      }
+      zoomRef.current = newZoom
+    }
+
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
 
       if (e.ctrlKey) {
-        // Pinch-to-zoom on trackpad (or Ctrl+scroll with mouse)
+        // Pinch-to-zoom on trackpad or Ctrl+scroll on mouse → zoom toward cursor
         const rect = canvas.getBoundingClientRect()
         const cursorX = e.clientX - rect.left
         const cursorY = e.clientY - rect.top
-
-        const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
-        const oldZoom = zoomRef.current
-        const oldScale = baseScale * oldZoom
-        const oldTx = (canvasSize.w - ISO_CANVAS_W * oldScale) / 2 + panRef.current.x
-        const oldTy = (canvasSize.h - ISO_CANVAS_H * oldScale) / 2 + panRef.current.y
-
-        const logX = (cursorX - oldTx) / oldScale
-        const logY = (cursorY - oldTy) / oldScale
-
-        // deltaY is inverted and smaller for pinch gestures
-        const zoomFactor = Math.pow(0.99, e.deltaY)
-        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomFactor))
-        const newScale = baseScale * newZoom
-
-        panRef.current = {
-          x: cursorX - logX * newScale - (canvasSize.w - ISO_CANVAS_W * newScale) / 2,
-          y: cursorY - logY * newScale - (canvasSize.h - ISO_CANVAS_H * newScale) / 2,
-        }
-        zoomRef.current = newZoom
+        zoomAtCursor(cursorX, cursorY, Math.pow(0.99, e.deltaY))
       } else {
-        // Two-finger scroll on trackpad or mouse wheel = pan
+        // Scroll → pan (works for both trackpad two-finger scroll and mouse wheel)
         panRef.current = {
           x: panRef.current.x - e.deltaX,
           y: panRef.current.y - e.deltaY,
