@@ -5,8 +5,8 @@ export const CANVAS_SIZE = GRID_SIZE * TILE_SIZE // 640px
 // Isometric dimensions (2:1 ratio)
 export const HALF_W = 12 // tile diamond half-width
 export const HALF_H = 6  // tile diamond half-height
-export const ISO_CANVAS_W = 960
-export const ISO_CANVAS_H = 560
+export const ISO_CANVAS_W = 1000
+export const ISO_CANVAS_H = 500
 export const TOP_PADDING = 40
 
 // Building heights (pixels) for isometric 3D boxes

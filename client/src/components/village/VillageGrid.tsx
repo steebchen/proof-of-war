@@ -194,8 +194,8 @@ export function VillageGrid() {
     const { scale, tx, ty } = getTransform()
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, tx * dpr, ty * dpr)
 
-    // Fill logical viewport background
-    ctx.fillStyle = '#1a3a1a'
+    // Fill logical viewport background (matches app background)
+    ctx.fillStyle = '#1a1a2e'
     ctx.fillRect(0, 0, ISO_CANVAS_W, ISO_CANVAS_H)
 
     // Draw diamond grid
