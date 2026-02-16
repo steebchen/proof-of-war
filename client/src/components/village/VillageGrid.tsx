@@ -148,6 +148,10 @@ export function VillageGrid() {
   const dragStart = useRef({ x: 0, y: 0 })
   const dragPanStart = useRef({ x: 0, y: 0 })
 
+  // Gesture tracking for wheel events (mouse wheel vs trackpad detection)
+  const lastWheelTimeRef = useRef(0)
+  const gestureModeRef = useRef<'zoom' | 'pan' | null>(null)
+
   // Load building sprites
   useEffect(() => {
     const entries = Object.entries(BUILDING_SPRITES)
@@ -599,36 +603,85 @@ export function VillageGrid() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Mouse wheel zoom toward cursor
+  // Wheel handler: mouse wheel → zoom, trackpad two-finger → pan, trackpad pinch → zoom
+  // Detection strategy:
+  //   ctrlKey=true → trackpad pinch (all browsers set this for pinch-to-zoom)
+  //   deltaMode=1 → Firefox mouse wheel (DOM_DELTA_LINE)
+  //   deltaMode=0, no ctrlKey → classify by gesture:
+  //     deltaX≠0 → trackpad (horizontal component from two-finger scroll)
+  //     First event |deltaY|≥20 → mouse wheel (~33-120px per notch)
+  //     First event |deltaY|<20 → trackpad (starts at ~0.5-5px before momentum)
+  //   Gesture resets after 200ms gap between events.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const rect = canvas.getBoundingClientRect()
-      const cursorX = e.clientX - rect.left
-      const cursorY = e.clientY - rect.top
 
-      const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
-      const oldZoom = zoomRef.current
-      const oldScale = baseScale * oldZoom
-      const oldTx = (canvasSize.w - ISO_CANVAS_W * oldScale) / 2 + panRef.current.x
-      const oldTy = (canvasSize.h - ISO_CANVAS_H * oldScale) / 2 + panRef.current.y
+      const now = performance.now()
+      const timeSinceLastEvent = now - lastWheelTimeRef.current
+      lastWheelTimeRef.current = now
 
-      const logX = (cursorX - oldTx) / oldScale
-      const logY = (cursorY - oldTy) / oldScale
-
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomFactor))
-      const newScale = baseScale * newZoom
-
-      panRef.current = {
-        x: cursorX - logX * newScale - (canvasSize.w - ISO_CANVAS_W * newScale) / 2,
-        y: cursorY - logY * newScale - (canvasSize.h - ISO_CANVAS_H * newScale) / 2,
+      // New gesture after 200ms gap
+      if (timeSinceLastEvent > 200) {
+        gestureModeRef.current = null
       }
-      zoomRef.current = newZoom
-      setCamTick((t) => t + 1)
+
+      // Classify gesture on first event
+      if (gestureModeRef.current === null) {
+        if (e.ctrlKey) {
+          // Trackpad pinch-to-zoom (reliable across Chrome/Firefox/Safari)
+          gestureModeRef.current = 'zoom'
+        } else if (e.deltaMode === 1) {
+          // Firefox mouse wheel (DOM_DELTA_LINE)
+          gestureModeRef.current = 'zoom'
+        } else if (e.deltaX !== 0) {
+          // Has horizontal component → trackpad two-finger scroll
+          gestureModeRef.current = 'pan'
+        } else {
+          // deltaMode=0, no ctrlKey, no deltaX: check first-event magnitude
+          // Mouse wheel: ~33-120px per notch, trackpad: ~0.5-5px initially
+          gestureModeRef.current = Math.abs(e.deltaY) >= 20 ? 'zoom' : 'pan'
+        }
+      }
+
+      if (gestureModeRef.current === 'zoom') {
+        // Zoom toward cursor
+        const rect = canvas.getBoundingClientRect()
+        const cursorX = e.clientX - rect.left
+        const cursorY = e.clientY - rect.top
+
+        const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
+        const oldZoom = zoomRef.current
+        const oldScale = baseScale * oldZoom
+        const oldTx = (canvasSize.w - ISO_CANVAS_W * oldScale) / 2 + panRef.current.x
+        const oldTy = (canvasSize.h - ISO_CANVAS_H * oldScale) / 2 + panRef.current.y
+
+        const logX = (cursorX - oldTx) / oldScale
+        const logY = (cursorY - oldTy) / oldScale
+
+        // Pinch-to-zoom: proportional for smooth feel; mouse wheel: fixed step per notch
+        const zoomFactor = e.ctrlKey
+          ? 1 - e.deltaY * 0.01
+          : e.deltaY > 0 ? 0.9 : 1.1
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomFactor))
+        const newScale = baseScale * newZoom
+
+        panRef.current = {
+          x: cursorX - logX * newScale - (canvasSize.w - ISO_CANVAS_W * newScale) / 2,
+          y: cursorY - logY * newScale - (canvasSize.h - ISO_CANVAS_H * newScale) / 2,
+        }
+        zoomRef.current = newZoom
+        setCamTick((t) => t + 1)
+      } else {
+        // Pan using scroll deltas
+        panRef.current = {
+          x: panRef.current.x - e.deltaX,
+          y: panRef.current.y - e.deltaY,
+        }
+        setCamTick((t) => t + 1)
+      }
     }
 
     canvas.addEventListener('wheel', handleWheel, { passive: false })
