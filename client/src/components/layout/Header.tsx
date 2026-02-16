@@ -104,6 +104,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '12px 24px',
     backgroundColor: '#16213e',
     borderBottom: '2px solid #0f3460',
+    position: 'relative',
+    zIndex: 100,
   },
   left: {
     display: 'flex',
@@ -175,6 +177,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     whiteSpace: 'nowrap',
     animation: 'fadeIn 0.3s ease',
+    zIndex: 9999,
   },
   right: {
     display: 'flex',
