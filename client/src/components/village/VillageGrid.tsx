@@ -605,14 +605,9 @@ export function VillageGrid() {
   }, [])
 
   // Wheel handler: mouse wheel → zoom, trackpad two-finger → pan, trackpad pinch → zoom
-  // Detection strategy:
-  //   ctrlKey=true → trackpad pinch (all browsers set this for pinch-to-zoom)
-  //   deltaMode=1 → Firefox mouse wheel (DOM_DELTA_LINE)
-  //   deltaMode=0, no ctrlKey → classify by gesture:
-  //     deltaX≠0 → trackpad (horizontal component from two-finger scroll)
-  //     First event |deltaY|≥20 → mouse wheel (~33-120px per notch)
-  //     First event |deltaY|<20 → trackpad (starts at ~0.5-5px before momentum)
-  //   Gesture resets after 200ms gap between events.
+  // Detection: default to zoom (preserves mouse wheel). If any event in a gesture
+  // has deltaX≠0, lock to pan (mouse wheel never has horizontal delta, trackpad
+  // almost always does). ctrlKey = trackpad pinch → zoom. Gesture resets after 200ms.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -629,25 +624,28 @@ export function VillageGrid() {
         gestureModeRef.current = null
       }
 
-      // Classify gesture on first event
-      if (gestureModeRef.current === null) {
-        if (e.ctrlKey) {
-          // Trackpad pinch-to-zoom (reliable across Chrome/Firefox/Safari)
-          gestureModeRef.current = 'zoom'
-        } else if (e.deltaMode === 1) {
-          // Firefox mouse wheel (DOM_DELTA_LINE)
-          gestureModeRef.current = 'zoom'
-        } else if (e.deltaX !== 0) {
-          // Has horizontal component → trackpad two-finger scroll
-          gestureModeRef.current = 'pan'
-        } else {
-          // deltaMode=0, no ctrlKey, no deltaX: check first-event magnitude
-          // Mouse wheel: ~33-120px per notch, trackpad: ~0.5-5px initially
-          gestureModeRef.current = Math.abs(e.deltaY) >= 20 ? 'zoom' : 'pan'
-        }
+      // Determine action for this event
+      let action: 'zoom' | 'pan'
+
+      if (e.ctrlKey) {
+        // Trackpad pinch-to-zoom (all browsers set ctrlKey for pinch)
+        action = 'zoom'
+      } else if (e.deltaMode === 1) {
+        // Firefox mouse wheel (DOM_DELTA_LINE)
+        action = 'zoom'
+      } else if (e.deltaX !== 0) {
+        // Has horizontal component → trackpad; lock gesture to pan
+        gestureModeRef.current = 'pan'
+        action = 'pan'
+      } else if (gestureModeRef.current === 'pan') {
+        // Already identified as trackpad gesture from earlier deltaX
+        action = 'pan'
+      } else {
+        // Default: zoom (mouse wheel or purely vertical input)
+        action = 'zoom'
       }
 
-      if (gestureModeRef.current === 'zoom') {
+      if (action === 'zoom') {
         // Zoom toward cursor
         const rect = canvas.getBoundingClientRect()
         const cursorX = e.clientX - rect.left
@@ -662,7 +660,7 @@ export function VillageGrid() {
         const logX = (cursorX - oldTx) / oldScale
         const logY = (cursorY - oldTy) / oldScale
 
-        // Pinch-to-zoom: proportional for smooth feel; mouse wheel: fixed step per notch
+        // Pinch: proportional for smooth feel; mouse wheel: fixed step per notch
         const zoomFactor = e.ctrlKey
           ? 1 - e.deltaY * 0.01
           : e.deltaY > 0 ? 0.9 : 1.1
