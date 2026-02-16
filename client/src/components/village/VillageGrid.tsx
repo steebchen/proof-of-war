@@ -38,15 +38,17 @@ function getUpgradeCost(buildingType: number, currentLevel: number): { gold: num
   }
 }
 
-// Production rate per minute
+// Must match Cairo RESOURCE_PRODUCTION_PER_MIN
 const RESOURCE_PRODUCTION_PER_MIN = 10
 
 function getBuildingStats(buildingType: number, level: number): string {
+  const perMin = RESOURCE_PRODUCTION_PER_MIN * level
+  const perSec = (perMin / 60).toFixed(2)
   switch (buildingType) {
     case BuildingType.GoldMine:
-      return `Produces ${RESOURCE_PRODUCTION_PER_MIN * level} gold/min`
+      return `${perSec} gold/sec (${perMin}/min)`
     case BuildingType.ElixirCollector:
-      return `Produces ${RESOURCE_PRODUCTION_PER_MIN * level} elixir/min`
+      return `${perSec} elixir/sec (${perMin}/min)`
     case BuildingType.GoldStorage:
       return `Stores ${1500 * level} gold`
     case BuildingType.ElixirStorage:

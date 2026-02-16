@@ -104,6 +104,7 @@ function App() {
         health: 1500,
         isUpgrading: false,
         upgradeFinishTime: BigInt(0),
+        lastCollectedAt: BigInt(Math.floor(Date.now() / 1000)),
       }
       setBuildings([townHall])
 

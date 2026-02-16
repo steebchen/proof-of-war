@@ -7,7 +7,7 @@ export function Header() {
   const { address, isConnected } = useAccount()
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
-  const { gold, elixir, collectResources } = useResources()
+  const { gold, elixir, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
   const { player, isConnected: toriiConnected } = useDojo()
 
   const formatNumber = (n: bigint): string => {
@@ -40,9 +40,28 @@ export function Header() {
               <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.elixir }}>E</span>
               <span style={styles.resourceValue}>{formatNumber(elixir)}</span>
             </div>
-            <button style={styles.collectBtn} onClick={collectResources}>
-              Collect
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                style={{
+                  ...styles.collectBtn,
+                  opacity: canCollect && !collecting ? 1 : 0.5,
+                  cursor: canCollect && !collecting ? 'pointer' : 'not-allowed',
+                }}
+                onClick={collectResources}
+                disabled={!canCollect || collecting}
+              >
+                {collecting ? 'Collecting...' : canCollect
+                  ? `Collect${pending.gold > 0 ? ` +${pending.gold}g` : ''}${pending.elixir > 0 ? ` +${pending.elixir}e` : ''}`
+                  : 'Nothing to collect'}
+              </button>
+              {lastCollection && (
+                <div style={styles.collectionToast}>
+                  {lastCollection.gold > 0 && <span style={{ color: '#FFD700' }}>+{lastCollection.gold} gold</span>}
+                  {lastCollection.gold > 0 && lastCollection.elixir > 0 && <span> </span>}
+                  {lastCollection.elixir > 0 && <span style={{ color: '#DA70D6' }}>+{lastCollection.elixir} elixir</span>}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -139,6 +158,21 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: 'bold',
+    fontSize: '13px',
+    whiteSpace: 'nowrap',
+  },
+  collectionToast: {
+    position: 'absolute',
+    bottom: '-28px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: 'rgba(39, 174, 96, 0.9)',
+    padding: '4px 10px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
+    animation: 'fadeIn 0.3s ease',
   },
   right: {
     display: 'flex',

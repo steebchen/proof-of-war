@@ -26,6 +26,7 @@ export interface Building {
   health: number
   isUpgrading: boolean
   upgradeFinishTime: bigint
+  lastCollectedAt: bigint
 }
 
 export interface Army {
@@ -136,6 +137,7 @@ function transformBuilding(data: ClashSchemaType['clash']['Building']): Building
     health: parseInt(data.health || '100', 10),
     isUpgrading: data.is_upgrading ?? false,
     upgradeFinishTime: BigInt(data.upgrade_finish_time || '0'),
+    lastCollectedAt: BigInt(data.last_collected_at || '0'),
   }
 }
 
