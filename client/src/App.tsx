@@ -241,14 +241,16 @@ const styles: Record<string, React.CSSProperties> = {
   app: {
     display: 'flex',
     flexDirection: 'column',
-    minHeight: '100vh',
+    height: '100vh',
+    overflow: 'hidden',
   },
   main: {
     flex: 1,
     display: 'flex',
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'stretch',
     backgroundColor: '#1a1a2e',
+    minHeight: 0,
   },
   connectPrompt: {
     textAlign: 'center',

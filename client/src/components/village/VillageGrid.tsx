@@ -107,6 +107,7 @@ function darkenColor(hex: string, factor: number): string {
 
 export function VillageGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const {
     buildings,
     isPlacing,
@@ -121,6 +122,48 @@ export function VillageGrid() {
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
   const [upgrading, setUpgrading] = useState(false)
   const [now, setNow] = useState(Math.floor(Date.now() / 1000))
+  const [canvasSize, setCanvasSize] = useState<{ w: number; h: number }>({ w: ISO_CANVAS_W, h: ISO_CANVAS_H })
+
+  // Track container size with ResizeObserver
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) {
+        setCanvasSize({ w: Math.round(width), h: Math.round(height) })
+      }
+    })
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [])
+
+  // Compute scale + offset to fit logical viewport into actual canvas
+  const getTransform = useCallback(() => {
+    const scale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
+    const tx = (canvasSize.w - ISO_CANVAS_W * scale) / 2
+    const ty = (canvasSize.h - ISO_CANVAS_H * scale) / 2
+    return { scale, tx, ty }
+  }, [canvasSize])
+
+  // Convert client mouse coords to logical coords
+  const clientToLogical = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    // Map CSS pixels to canvas pixels, then invert the transform
+    const canvasX = (clientX - rect.left) * (canvas.width / rect.width) / dpr
+    const canvasY = (clientY - rect.top) * (canvas.height / rect.height) / dpr
+    const { scale, tx, ty } = getTransform()
+    return {
+      x: (canvasX - tx) / scale,
+      y: (canvasY - ty) / scale,
+    }
+  }, [getTransform])
 
   // Tick every second for upgrade timers
   useEffect(() => {
@@ -138,7 +181,20 @@ export function VillageGrid() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Clear canvas
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = canvasSize.w * dpr
+    canvas.height = canvasSize.h * dpr
+
+    // Clear
+    ctx.resetTransform()
+    ctx.fillStyle = '#1a1a2e'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Apply DPR scaling + fit transform
+    const { scale, tx, ty } = getTransform()
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, tx * dpr, ty * dpr)
+
+    // Fill logical viewport background
     ctx.fillStyle = '#1a3a1a'
     ctx.fillRect(0, 0, ISO_CANVAS_W, ISO_CANVAS_H)
 
@@ -361,42 +417,26 @@ export function VillageGrid() {
 
       ctx.globalAlpha = 1
     }
-  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now])
+  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform])
 
   // Handle mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = ISO_CANVAS_W / rect.width
-    const scaleY = ISO_CANVAS_H / rect.height
-    const x = (e.clientX - rect.left) * scaleX
-    const y = (e.clientY - rect.top) * scaleY
-
-    setMousePos({ x, y })
-  }, [])
+    const pos = clientToLogical(e.clientX, e.clientY)
+    setMousePos(pos)
+  }, [clientToLogical])
 
   // Handle click
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = ISO_CANVAS_W / rect.width
-    const scaleY = ISO_CANVAS_H / rect.height
-    const x = (e.clientX - rect.left) * scaleX
-    const y = (e.clientY - rect.top) * scaleY
-    const { gx: gridX, gy: gridY } = screenToGrid(x, y)
+    const pos = clientToLogical(e.clientX, e.clientY)
+    const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
 
     if (isPlacing && selectedBuildingType !== null) {
       placeBuilding(gridX, gridY)
     } else {
-      // Select building at click position
       const building = getBuildingAt(gridX, gridY)
       setSelectedBuilding(building?.buildingId ?? null)
     }
-  }, [isPlacing, selectedBuildingType, placeBuilding, getBuildingAt])
+  }, [isPlacing, selectedBuildingType, placeBuilding, getBuildingAt, clientToLogical])
 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -469,11 +509,9 @@ export function VillageGrid() {
   const upgradeReady = selectedBuildingData?.isUpgrading && upgradeRemaining <= 0
 
   return (
-    <div style={styles.container}>
+    <div ref={containerRef} style={styles.container}>
       <canvas
         ref={canvasRef}
-        width={ISO_CANVAS_W}
-        height={ISO_CANVAS_H}
         style={styles.canvas}
         onMouseMove={handleMouseMove}
         onClick={handleClick}
@@ -563,21 +601,20 @@ export function VillageGrid() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     position: 'relative',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: '20px',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
   },
   canvas: {
-    border: '4px solid #0f3460',
-    borderRadius: '8px',
+    display: 'block',
+    width: '100%',
+    height: '100%',
     cursor: 'crosshair',
-    maxWidth: '100%',
   },
   buildingInfo: {
     position: 'absolute',
-    top: '30px',
-    right: '30px',
+    top: '16px',
+    right: '16px',
     backgroundColor: 'rgba(22, 33, 62, 0.95)',
     padding: '16px',
     borderRadius: '8px',
