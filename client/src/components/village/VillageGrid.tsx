@@ -123,7 +123,7 @@ export function VillageGrid() {
   const { account } = useAccount()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
-  const [upgrading, setUpgrading] = useState(false)
+  const [pending, setPending] = useState(false)
   const [now, setNow] = useState(Math.floor(Date.now() / 1000))
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number }>({ w: ISO_CANVAS_W, h: ISO_CANVAS_H })
 
@@ -448,8 +448,8 @@ export function VillageGrid() {
 
   // Upgrade building on-chain
   const handleUpgrade = useCallback(async (buildingId: number) => {
-    if (!account) return
-    setUpgrading(true)
+    if (!account || pending) return
+    setPending(true)
     try {
       await account.execute([
         {
@@ -462,37 +462,41 @@ export function VillageGrid() {
     } catch (error) {
       console.error('Failed to upgrade:', error)
     } finally {
-      setUpgrading(false)
+      setPending(false)
     }
-  }, [account])
+  }, [account, pending])
 
   // Finish upgrade on-chain (retry if block timestamp hasn't caught up)
   const handleFinishUpgrade = useCallback(async (buildingId: number) => {
-    if (!account) return
-    const maxRetries = 3
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        await account.execute([
-          {
-            contractAddress: dojoConfig.buildingSystemAddress,
-            entrypoint: 'finish_upgrade',
-            calldata: [buildingId],
-          },
-        ])
-        console.log('Upgrade finished on-chain')
-        return
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error)
-        if (msg.includes('Upgrade not finished') && attempt < maxRetries - 1) {
-          // Block timestamp hasn't caught up yet, wait and retry
-          await new Promise((r) => setTimeout(r, 2000))
-          continue
+    if (!account || pending) return
+    setPending(true)
+    try {
+      const maxRetries = 3
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          await account.execute([
+            {
+              contractAddress: dojoConfig.buildingSystemAddress,
+              entrypoint: 'finish_upgrade',
+              calldata: [buildingId],
+            },
+          ])
+          console.log('Upgrade finished on-chain')
+          return
+        } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : String(error)
+          if (msg.includes('Upgrade not finished') && attempt < maxRetries - 1) {
+            await new Promise((r) => setTimeout(r, 2000))
+            continue
+          }
+          console.error('Failed to finish upgrade:', error)
+          return
         }
-        console.error('Failed to finish upgrade:', error)
-        return
       }
+    } finally {
+      setPending(false)
     }
-  }, [account])
+  }, [account, pending])
 
   // Redraw when dependencies change
   useEffect(() => {
@@ -556,14 +560,14 @@ export function VillageGrid() {
               <button
                 style={{
                   ...styles.upgradeBtn,
-                  backgroundColor: upgradeReady ? '#27ae60' : '#555',
-                  opacity: upgradeReady ? 1 : 0.5,
-                  cursor: upgradeReady ? 'pointer' : 'not-allowed',
+                  backgroundColor: upgradeReady && !pending ? '#27ae60' : '#555',
+                  opacity: upgradeReady && !pending ? 1 : 0.5,
+                  cursor: upgradeReady && !pending ? 'pointer' : 'not-allowed',
                 }}
-                onClick={() => upgradeReady && handleFinishUpgrade(selectedBuildingData.buildingId)}
-                disabled={!upgradeReady}
+                onClick={() => upgradeReady && !pending && handleFinishUpgrade(selectedBuildingData.buildingId)}
+                disabled={!upgradeReady || pending}
               >
-                {upgradeReady ? 'Finish Upgrade' : `${formatCountdown(upgradeRemaining)} remaining`}
+                {pending ? 'Finishing...' : upgradeReady ? 'Finish Upgrade' : `${formatCountdown(upgradeRemaining)} remaining`}
               </button>
             </div>
           )}
@@ -589,13 +593,13 @@ export function VillageGrid() {
                   <button
                     style={{
                       ...styles.upgradeBtn,
-                      opacity: affordable && !upgrading ? 1 : 0.5,
-                      cursor: affordable && !upgrading ? 'pointer' : 'not-allowed',
+                      opacity: affordable && !pending ? 1 : 0.5,
+                      cursor: affordable && !pending ? 'pointer' : 'not-allowed',
                     }}
-                    onClick={() => affordable && !upgrading && handleUpgrade(selectedBuildingData.buildingId)}
-                    disabled={!affordable || upgrading}
+                    onClick={() => affordable && !pending && handleUpgrade(selectedBuildingData.buildingId)}
+                    disabled={!affordable || pending}
                   >
-                    {!affordable ? 'Not enough resources' : upgrading ? 'Upgrading...' : `Upgrade to L${selectedBuildingData.level + 1}`}
+                    {!affordable ? 'Not enough resources' : pending ? 'Sending...' : `Upgrade to L${selectedBuildingData.level + 1}`}
                   </button>
                 </div>
               )
