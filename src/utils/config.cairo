@@ -21,7 +21,7 @@ pub struct BuildingCost {
 pub fn get_building_cost(building_type: BuildingType, level: u8) -> BuildingCost {
     // Base costs for level 1
     let base_cost = match building_type {
-        BuildingType::TownHall => BuildingCost { gold: 0, elixir: 0 }, // Starter, free
+        BuildingType::TownHall => BuildingCost { gold: 500, elixir: 500 },
         BuildingType::GoldMine => BuildingCost { gold: 150, elixir: 0 },
         BuildingType::ElixirCollector => BuildingCost { gold: 150, elixir: 0 },
         BuildingType::GoldStorage => BuildingCost { gold: 300, elixir: 0 },

@@ -28,7 +28,7 @@ export enum BuildingType {
 
 // Building display info
 export const BUILDING_INFO: Record<BuildingType, { name: string; color: string; width: number; height: number; cost: { gold: number; elixir: number } }> = {
-  [BuildingType.TownHall]: { name: 'Town Hall', color: '#FFD700', width: 4, height: 4, cost: { gold: 0, elixir: 0 } },
+  [BuildingType.TownHall]: { name: 'Town Hall', color: '#FFD700', width: 4, height: 4, cost: { gold: 500, elixir: 500 } },
   [BuildingType.GoldMine]: { name: 'Gold Mine', color: '#FFA500', width: 3, height: 3, cost: { gold: 150, elixir: 0 } },
   [BuildingType.ElixirCollector]: { name: 'Elixir Collector', color: '#9932CC', width: 3, height: 3, cost: { gold: 150, elixir: 0 } },
   [BuildingType.GoldStorage]: { name: 'Gold Storage', color: '#DAA520', width: 3, height: 3, cost: { gold: 300, elixir: 0 } },
