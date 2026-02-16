@@ -7,7 +7,7 @@ import { useResources } from './useResources'
 export function useTroops() {
   const { army, setArmy } = useDojo()
   const { account } = useAccount()
-  const { canAfford, spendResources } = useResources()
+  const { canAfford } = useResources()
 
   const barbarians = army?.barbarians ?? 0
   const archers = army?.archers ?? 0
@@ -33,9 +33,6 @@ export function useTroops() {
       return false
     }
 
-    // Spend resources
-    spendResources(0, totalCost)
-
     // Optimistically update army
     const newArmy = { ...army }
     if (troopType === TroopType.Barbarian) {
@@ -50,7 +47,7 @@ export function useTroops() {
     console.log('Training troops:', { troopType, quantity })
 
     return true
-  }, [account, army, canAfford, spendResources, setArmy])
+  }, [account, army, canAfford, setArmy])
 
   const getTroopCount = useCallback((troopType: TroopType): number => {
     if (troopType === TroopType.Barbarian) return barbarians

@@ -11,7 +11,7 @@ interface BottomBarProps {
 
 export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
   const { isPlacing, selectedBuildingType, startPlacing, cancelPlacing } = useBuildings()
-  const { canAfford } = useResources()
+  const { gold, elixir, canAfford } = useResources()
   const { player, buildings } = useDojo()
 
   const townHallLevel = player?.townHallLevel ?? 1
@@ -37,6 +37,18 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
             const isSelected = isPlacing && selectedBuildingType === building.type
             const isDisabled = !affordable || atLimit
 
+            // Determine disabled reason
+            let disabledReason = ''
+            if (atLimit) {
+              disabledReason = 'Max built'
+            } else if (!affordable) {
+              if (building.cost.gold > 0 && gold < BigInt(building.cost.gold)) {
+                disabledReason = `Need ${building.cost.gold - Number(gold)} gold`
+              } else if (building.cost.elixir > 0 && elixir < BigInt(building.cost.elixir)) {
+                disabledReason = `Need ${building.cost.elixir - Number(elixir)} elixir`
+              }
+            }
+
             return (
               <div key={building.type} style={styles.buildingWrapper}>
                 <button
@@ -49,10 +61,19 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
                   }}
                   onClick={() => !isDisabled && (isSelected ? cancelPlacing() : startPlacing(building.type))}
                   disabled={isDisabled}
-                  title={`${building.name}\nGold: ${building.cost.gold}\nElixir: ${building.cost.elixir}\nLimit: ${limitInfo.current}/${limitInfo.max}`}
                 >
                   <span style={styles.buildingName}>{building.name.slice(0, 2)}</span>
                 </button>
+                {/* Cost display */}
+                <div style={styles.costRow}>
+                  {building.cost.gold > 0 && (
+                    <span style={styles.goldCost}>{building.cost.gold}g</span>
+                  )}
+                  {building.cost.elixir > 0 && (
+                    <span style={styles.elixirCost}>{building.cost.elixir}e</span>
+                  )}
+                </div>
+                {/* Limit badge */}
                 <div
                   style={{
                     ...styles.limitBadge,
@@ -62,6 +83,10 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
                 >
                   {limitInfo.current}/{limitInfo.max}
                 </div>
+                {/* Disabled reason */}
+                {isDisabled && disabledReason && (
+                  <div style={styles.disabledReason}>{disabledReason}</div>
+                )}
               </div>
             )
           })}
@@ -140,11 +165,31 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
     textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
   },
+  costRow: {
+    display: 'flex',
+    gap: '4px',
+    fontSize: '10px',
+    fontWeight: 'bold',
+  },
+  goldCost: {
+    color: '#FFD700',
+  },
+  elixirCost: {
+    color: '#DA70D6',
+  },
   limitBadge: {
     fontSize: '10px',
     padding: '1px 4px',
     borderRadius: '4px',
     fontWeight: 'bold',
+  },
+  disabledReason: {
+    fontSize: '9px',
+    color: '#e74c3c',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    maxWidth: '60px',
+    lineHeight: '1.1',
   },
   actionButtons: {
     display: 'flex',

@@ -7,9 +7,9 @@ pub const GRID_SIZE: u8 = 40;
 pub const STARTING_GOLD: u64 = 500;
 pub const STARTING_ELIXIR: u64 = 500;
 
-// Resource production per minute at level 1
-pub const GOLD_MINE_PRODUCTION_PER_MIN: u64 = 10;
-pub const ELIXIR_COLLECTOR_PRODUCTION_PER_MIN: u64 = 10;
+// Resource production rate: units produced per minute per level.
+// Tune this single value to speed up or slow down all resource generation.
+pub const RESOURCE_PRODUCTION_PER_MIN: u64 = 10;
 
 // Building costs (gold, elixir) per type
 #[derive(Copy, Drop)]

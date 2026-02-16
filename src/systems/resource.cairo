@@ -25,7 +25,7 @@ pub mod resource_system {
     use clash_prototype::models::player::Player;
     use clash_prototype::models::building::{Building, BuildingType};
     use clash_prototype::utils::config::{
-        GOLD_MINE_PRODUCTION_PER_MIN, ELIXIR_COLLECTOR_PRODUCTION_PER_MIN,
+        RESOURCE_PRODUCTION_PER_MIN,
         get_storage_capacity
     };
 
@@ -173,15 +173,10 @@ pub mod resource_system {
 
             let elapsed_minutes = (current_time - last_collected_at) / 60;
 
+            let production = RESOURCE_PRODUCTION_PER_MIN * elapsed_minutes * level.into();
             match building_type {
-                BuildingType::GoldMine => {
-                    let gold = GOLD_MINE_PRODUCTION_PER_MIN * elapsed_minutes * level.into();
-                    (gold, 0)
-                },
-                BuildingType::ElixirCollector => {
-                    let elixir = ELIXIR_COLLECTOR_PRODUCTION_PER_MIN * elapsed_minutes * level.into();
-                    (0, elixir)
-                },
+                BuildingType::GoldMine => (production, 0),
+                BuildingType::ElixirCollector => (0, production),
                 _ => (0, 0),
             }
         }
