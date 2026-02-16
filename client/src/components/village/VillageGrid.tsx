@@ -432,7 +432,6 @@ export function VillageGrid() {
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const pos = clientToLogical(e.clientX, e.clientY)
     const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
-
     if (isPlacing && selectedBuildingType !== null) {
       placeBuilding(gridX, gridY)
     } else {
@@ -446,6 +445,15 @@ export function VillageGrid() {
     setMousePos(null)
   }, [])
 
+  // Skip fee estimation on Katana dev (block timestamp can be stale)
+  const noFeeDetails = {
+    resourceBounds: {
+      l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
+      l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
+      l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
+    },
+  }
+
   // Upgrade building on-chain
   const handleUpgrade = useCallback(async (buildingId: number) => {
     if (!account || pending) return
@@ -457,7 +465,7 @@ export function VillageGrid() {
           entrypoint: 'upgrade_building',
           calldata: [buildingId],
         },
-      ])
+      ], noFeeDetails)
       console.log('Upgrade started on-chain')
     } catch (error) {
       console.error('Failed to upgrade:', error)
@@ -466,33 +474,21 @@ export function VillageGrid() {
     }
   }, [account, pending])
 
-  // Finish upgrade on-chain (retry if block timestamp hasn't caught up)
+  // Finish upgrade on-chain
   const handleFinishUpgrade = useCallback(async (buildingId: number) => {
     if (!account || pending) return
     setPending(true)
     try {
-      const maxRetries = 3
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          await account.execute([
-            {
-              contractAddress: dojoConfig.buildingSystemAddress,
-              entrypoint: 'finish_upgrade',
-              calldata: [buildingId],
-            },
-          ])
-          console.log('Upgrade finished on-chain')
-          return
-        } catch (error: unknown) {
-          const msg = error instanceof Error ? error.message : String(error)
-          if (msg.includes('Upgrade not finished') && attempt < maxRetries - 1) {
-            await new Promise((r) => setTimeout(r, 2000))
-            continue
-          }
-          console.error('Failed to finish upgrade:', error)
-          return
-        }
-      }
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'finish_upgrade',
+          calldata: [buildingId],
+        },
+      ], noFeeDetails)
+      console.log('Upgrade finished on-chain')
+    } catch (error) {
+      console.error('Failed to finish upgrade:', error)
     } finally {
       setPending(false)
     }
