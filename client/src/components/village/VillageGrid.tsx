@@ -273,30 +273,30 @@ export function VillageGrid() {
 
       const sprite = spritesRef.current[building.buildingType]
 
+      // Grid footprint hint for all buildings
+      ctx.beginPath()
+      ctx.moveTo(topG.x, topG.y)
+      ctx.lineTo(rightG.x, rightG.y)
+      ctx.lineTo(bottomG.x, bottomG.y)
+      ctx.lineTo(leftG.x, leftG.y)
+      ctx.closePath()
+      ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.25)'
+      ctx.fill()
+      ctx.strokeStyle = isSelected ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.1)'
+      ctx.lineWidth = 1
+      ctx.stroke()
+
       if (sprite) {
         // Draw sprite image
         const diamondW = rightG.x - leftG.x
-        const spriteScale = 1.4
+        const spriteScale = 1.0
         const spriteW = diamondW * spriteScale
-        const spriteH = spriteW // 1:1 aspect ratio
+        const spriteH = spriteW
         const cx = (leftG.x + rightG.x) / 2
         const drawX = cx - spriteW / 2
         const drawY = bottomG.y - spriteH * 0.88
 
         ctx.drawImage(sprite, drawX, drawY, spriteW, spriteH)
-
-        // Selection highlight: diamond footprint outline
-        if (isSelected) {
-          ctx.strokeStyle = '#fff'
-          ctx.lineWidth = 2
-          ctx.beginPath()
-          ctx.moveTo(topG.x, topG.y)
-          ctx.lineTo(rightG.x, rightG.y)
-          ctx.lineTo(bottomG.x, bottomG.y)
-          ctx.lineTo(leftG.x, leftG.y)
-          ctx.closePath()
-          ctx.stroke()
-        }
       } else {
         // 3D box rendering
 
