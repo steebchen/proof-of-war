@@ -1,5 +1,8 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useBuildings } from '../../hooks/useBuildings'
+import { useResources } from '../../hooks/useResources'
+import { useAccount } from '@starknet-react/core'
+import { dojoConfig, BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   TILE_SIZE,
@@ -9,6 +12,51 @@ import {
   BUILDING_COLORS,
   BUILDING_NAMES,
 } from '../../utils/constants'
+
+// Max levels must match Cairo config
+const MAX_LEVELS: Record<number, number> = {
+  [BuildingType.TownHall]: 5,
+  [BuildingType.GoldMine]: 3,
+  [BuildingType.ElixirCollector]: 3,
+  [BuildingType.GoldStorage]: 3,
+  [BuildingType.ElixirStorage]: 3,
+  [BuildingType.Barracks]: 3,
+  [BuildingType.ArmyCamp]: 3,
+  [BuildingType.Cannon]: 3,
+  [BuildingType.ArcherTower]: 3,
+  [BuildingType.Wall]: 3,
+}
+
+// Upgrade costs: base_cost * next_level (must match Cairo)
+function getUpgradeCost(buildingType: number, currentLevel: number): { gold: number; elixir: number } {
+  const info = BUILDING_INFO[buildingType as BuildingType]
+  if (!info) return { gold: 0, elixir: 0 }
+  const nextLevel = currentLevel + 1
+  return {
+    gold: info.cost.gold * nextLevel,
+    elixir: info.cost.elixir * nextLevel,
+  }
+}
+
+// Production rate per minute
+const RESOURCE_PRODUCTION_PER_MIN = 10
+
+function getBuildingStats(buildingType: number, level: number): string {
+  switch (buildingType) {
+    case BuildingType.GoldMine:
+      return `Produces ${RESOURCE_PRODUCTION_PER_MIN * level} gold/min`
+    case BuildingType.ElixirCollector:
+      return `Produces ${RESOURCE_PRODUCTION_PER_MIN * level} elixir/min`
+    case BuildingType.GoldStorage:
+      return `Stores ${1500 * level} gold`
+    case BuildingType.ElixirStorage:
+      return `Stores ${1500 * level} elixir`
+    case BuildingType.TownHall:
+      return `Stores ${1000 * level} each`
+    default:
+      return ''
+  }
+}
 
 export function VillageGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -20,8 +68,11 @@ export function VillageGrid() {
     checkCollision,
     getBuildingAt,
   } = useBuildings()
+  const { canAfford } = useResources()
+  const { account } = useAccount()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
+  const [upgrading, setUpgrading] = useState(false)
 
   // Draw the grid
   const draw = useCallback(() => {
@@ -168,6 +219,43 @@ export function VillageGrid() {
     setMousePos(null)
   }, [])
 
+  // Upgrade building on-chain
+  const handleUpgrade = useCallback(async (buildingId: number) => {
+    if (!account) return
+    setUpgrading(true)
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'upgrade_building',
+          calldata: [buildingId],
+        },
+      ])
+      console.log('Upgrade started on-chain')
+    } catch (error) {
+      console.error('Failed to upgrade:', error)
+    } finally {
+      setUpgrading(false)
+    }
+  }, [account])
+
+  // Finish upgrade on-chain
+  const handleFinishUpgrade = useCallback(async (buildingId: number) => {
+    if (!account) return
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'finish_upgrade',
+          calldata: [buildingId],
+        },
+      ])
+      console.log('Upgrade finished on-chain')
+    } catch (error) {
+      console.error('Failed to finish upgrade:', error)
+    }
+  }, [account])
+
   // Redraw when dependencies change
   useEffect(() => {
     draw()
@@ -185,6 +273,11 @@ export function VillageGrid() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Get selected building data
+  const selectedBuildingData = selectedBuilding !== null
+    ? buildings.find((b) => b.buildingId === selectedBuilding)
+    : null
+
   return (
     <div style={styles.container}>
       <canvas
@@ -197,20 +290,72 @@ export function VillageGrid() {
         onMouseLeave={handleMouseLeave}
       />
 
-      {selectedBuilding !== null && (
+      {selectedBuildingData && (
         <div style={styles.buildingInfo}>
-          {(() => {
-            const building = buildings.find((b) => b.buildingId === selectedBuilding)
-            if (!building) return null
-            return (
-              <>
-                <h4>{BUILDING_NAMES[building.buildingType] || 'Unknown'}</h4>
-                <p>Level: {building.level}</p>
-                <p>Health: {building.health}</p>
-                {building.isUpgrading && <p style={{ color: '#FFA500' }}>Upgrading...</p>}
-              </>
-            )
-          })()}
+          <h4 style={{ margin: '0 0 8px 0' }}>
+            {BUILDING_NAMES[selectedBuildingData.buildingType] || 'Unknown'}
+          </h4>
+          <p style={styles.stat}>Level: {selectedBuildingData.level}/{MAX_LEVELS[selectedBuildingData.buildingType] ?? 1}</p>
+          <p style={styles.stat}>Health: {selectedBuildingData.health}</p>
+
+          {/* Building stats */}
+          {getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level) && (
+            <p style={{ ...styles.stat, color: '#4CAF50' }}>
+              {getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level)}
+            </p>
+          )}
+
+          {/* Upgrading status */}
+          {selectedBuildingData.isUpgrading && (
+            <>
+              <p style={{ ...styles.stat, color: '#FFA500' }}>Upgrading...</p>
+              <button
+                style={styles.upgradeBtn}
+                onClick={() => handleFinishUpgrade(selectedBuildingData.buildingId)}
+              >
+                Finish Upgrade
+              </button>
+            </>
+          )}
+
+          {/* Upgrade button */}
+          {!selectedBuildingData.isUpgrading &&
+            selectedBuildingData.level < (MAX_LEVELS[selectedBuildingData.buildingType] ?? 1) && (() => {
+              const cost = getUpgradeCost(selectedBuildingData.buildingType, selectedBuildingData.level)
+              const affordable = canAfford(cost.gold, cost.elixir)
+              const nextStats = getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
+
+              return (
+                <div style={styles.upgradeSection}>
+                  <div style={styles.upgradeCost}>
+                    {cost.gold > 0 && <span style={{ color: '#FFD700' }}>{cost.gold} gold</span>}
+                    {cost.elixir > 0 && <span style={{ color: '#DA70D6' }}>{cost.elixir} elixir</span>}
+                  </div>
+                  {nextStats && (
+                    <p style={{ ...styles.stat, color: '#888', fontSize: '11px' }}>
+                      Next: {nextStats}
+                    </p>
+                  )}
+                  <button
+                    style={{
+                      ...styles.upgradeBtn,
+                      opacity: affordable && !upgrading ? 1 : 0.5,
+                      cursor: affordable && !upgrading ? 'pointer' : 'not-allowed',
+                    }}
+                    onClick={() => affordable && !upgrading && handleUpgrade(selectedBuildingData.buildingId)}
+                    disabled={!affordable || upgrading}
+                  >
+                    {!affordable ? 'Not enough resources' : upgrading ? 'Upgrading...' : `Upgrade to L${selectedBuildingData.level + 1}`}
+                  </button>
+                </div>
+              )
+            })()}
+
+          {/* Max level indicator */}
+          {!selectedBuildingData.isUpgrading &&
+            selectedBuildingData.level >= (MAX_LEVELS[selectedBuildingData.buildingType] ?? 1) && (
+              <p style={{ ...styles.stat, color: '#FFD700', fontWeight: 'bold' }}>Max Level</p>
+            )}
         </div>
       )}
     </div>
@@ -238,6 +383,34 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     borderRadius: '8px',
     border: '2px solid #0f3460',
-    minWidth: '150px',
+    minWidth: '180px',
+  },
+  stat: {
+    margin: '4px 0',
+    fontSize: '13px',
+  },
+  upgradeSection: {
+    marginTop: '8px',
+    paddingTop: '8px',
+    borderTop: '1px solid #0f3460',
+  },
+  upgradeCost: {
+    display: 'flex',
+    gap: '8px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    marginBottom: '4px',
+  },
+  upgradeBtn: {
+    width: '100%',
+    padding: '8px',
+    backgroundColor: '#27ae60',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    marginTop: '4px',
   },
 }

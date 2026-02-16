@@ -77,18 +77,28 @@ pub mod resource_system {
                 i += 1;
             };
 
+            // Check storage capacity - error if completely full for a resource being produced
+            if total_gold_collected > 0 {
+                assert(player.gold < gold_capacity, 'Gold storage full');
+            }
+            if total_elixir_collected > 0 {
+                assert(player.elixir < elixir_capacity, 'Elixir storage full');
+            }
+
             // Apply to player resources (cap at storage capacity)
-            player.gold = if player.gold + total_gold_collected > gold_capacity {
-                gold_capacity
+            let gold_added = if player.gold + total_gold_collected > gold_capacity {
+                gold_capacity - player.gold
             } else {
-                player.gold + total_gold_collected
+                total_gold_collected
+            };
+            let elixir_added = if player.elixir + total_elixir_collected > elixir_capacity {
+                elixir_capacity - player.elixir
+            } else {
+                total_elixir_collected
             };
 
-            player.elixir = if player.elixir + total_elixir_collected > elixir_capacity {
-                elixir_capacity
-            } else {
-                player.elixir + total_elixir_collected
-            };
+            player.gold += gold_added;
+            player.elixir += elixir_added;
 
             player.last_collected_at = current_time;
             world.write_model(@player);
@@ -96,8 +106,8 @@ pub mod resource_system {
             // Emit event
             world.emit_event(@ResourcesCollected {
                 player: player_address,
-                gold_collected: total_gold_collected,
-                elixir_collected: total_elixir_collected,
+                gold_collected: gold_added,
+                elixir_collected: elixir_added,
             });
         }
 
@@ -126,19 +136,28 @@ pub mod resource_system {
                 @world, player_address, player.building_count
             );
 
+            // Check storage capacity
+            if gold > 0 {
+                assert(player.gold < gold_capacity, 'Gold storage full');
+            }
+            if elixir > 0 {
+                assert(player.elixir < elixir_capacity, 'Elixir storage full');
+            }
+
             // Apply to player resources (cap at storage capacity)
-            player.gold = if player.gold + gold > gold_capacity {
-                gold_capacity
+            let gold_added = if player.gold + gold > gold_capacity {
+                gold_capacity - player.gold
             } else {
-                player.gold + gold
+                gold
+            };
+            let elixir_added = if player.elixir + elixir > elixir_capacity {
+                elixir_capacity - player.elixir
+            } else {
+                elixir
             };
 
-            player.elixir = if player.elixir + elixir > elixir_capacity {
-                elixir_capacity
-            } else {
-                player.elixir + elixir
-            };
-
+            player.gold += gold_added;
+            player.elixir += elixir_added;
             world.write_model(@player);
 
             // Update building's last collected time
@@ -148,8 +167,8 @@ pub mod resource_system {
             // Emit event
             world.emit_event(@ResourcesCollected {
                 player: player_address,
-                gold_collected: gold,
-                elixir_collected: elixir,
+                gold_collected: gold_added,
+                elixir_collected: elixir_added,
             });
         }
     }

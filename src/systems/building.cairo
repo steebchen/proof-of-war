@@ -41,7 +41,7 @@ pub mod building_system {
     use clash_prototype::models::army::Army;
     use clash_prototype::utils::config::{
         GRID_SIZE, get_building_cost, get_building_health, get_max_building_count,
-        get_upgrade_time, get_army_camp_capacity
+        get_upgrade_time, get_army_camp_capacity, get_max_level
     };
 
     #[abi(embed_v0)]
@@ -125,6 +125,7 @@ pub mod building_system {
 
             assert(building.level > 0, 'Building not found');
             assert(!building.is_upgrading, 'Already upgrading');
+            assert(building.level < get_max_level(building.building_type), 'Max level reached');
 
             // Check upgrade resources (next level cost)
             let cost = get_building_cost(building.building_type, building.level + 1);

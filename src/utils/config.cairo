@@ -100,6 +100,22 @@ pub fn get_defense_stats(building_type: BuildingType, level: u8) -> DefenseStats
     }
 }
 
+// Maximum level a building can be upgraded to
+pub fn get_max_level(building_type: BuildingType) -> u8 {
+    match building_type {
+        BuildingType::TownHall => 5,
+        BuildingType::GoldMine => 3,
+        BuildingType::ElixirCollector => 3,
+        BuildingType::GoldStorage => 3,
+        BuildingType::ElixirStorage => 3,
+        BuildingType::Barracks => 3,
+        BuildingType::ArmyCamp => 3,
+        BuildingType::Cannon => 3,
+        BuildingType::ArcherTower => 3,
+        BuildingType::Wall => 3,
+    }
+}
+
 // Max building counts per town hall level
 pub fn get_max_building_count(building_type: BuildingType, town_hall_level: u8) -> u8 {
     match building_type {
