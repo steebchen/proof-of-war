@@ -146,6 +146,8 @@ export function VillageGrid() {
   const dragPanStart = useRef({ x: 0, y: 0 })
   const pinchStartDist = useRef(0)
   const pinchStartZoom = useRef(1.0)
+  const lastWheelTime = useRef(0)
+  const wheelMode = useRef<'zoom' | 'pan'>('zoom')
 
   // Load building sprites
   useEffect(() => {
@@ -570,18 +572,30 @@ export function VillageGrid() {
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const cursorX = e.clientX - rect.left
+      const cursorY = e.clientY - rect.top
 
       if (e.ctrlKey) {
-        // Pinch-to-zoom on trackpad or Ctrl+scroll on mouse → zoom toward cursor
-        const rect = canvas.getBoundingClientRect()
-        const cursorX = e.clientX - rect.left
-        const cursorY = e.clientY - rect.top
+        // Pinch-to-zoom on trackpad or Ctrl+scroll on mouse
         zoomAtCursor(cursorX, cursorY, Math.pow(0.99, e.deltaY))
       } else {
-        // Scroll → pan (works for both trackpad two-finger scroll and mouse wheel)
-        panRef.current = {
-          x: panRef.current.x - e.deltaX,
-          y: panRef.current.y - e.deltaY,
+        // Detect device: on a new scroll gesture (>200ms gap), check delta size.
+        // Mouse wheel produces large discrete jumps (≥50px), trackpad starts small.
+        const now = performance.now()
+        const dt = now - lastWheelTime.current
+        lastWheelTime.current = now
+        if (dt > 200) {
+          wheelMode.current = Math.abs(e.deltaY) >= 50 ? 'zoom' : 'pan'
+        }
+
+        if (wheelMode.current === 'zoom') {
+          zoomAtCursor(cursorX, cursorY, e.deltaY > 0 ? 0.9 : 1.1)
+        } else {
+          panRef.current = {
+            x: panRef.current.x - e.deltaX,
+            y: panRef.current.y - e.deltaY,
+          }
         }
       }
       setCamTick((t) => t + 1)
