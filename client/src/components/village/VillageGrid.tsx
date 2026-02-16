@@ -72,8 +72,11 @@ function formatCountdown(seconds: number): string {
   return `${s}s`
 }
 
+// Buffer (seconds) to account for client clock being ahead of on-chain block timestamp
+const UPGRADE_BUFFER = 5
+
 function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
-  const finish = Number(upgradeFinishTime)
+  const finish = Number(upgradeFinishTime) + UPGRADE_BUFFER
   return Math.max(0, finish - now)
 }
 
@@ -463,20 +466,31 @@ export function VillageGrid() {
     }
   }, [account])
 
-  // Finish upgrade on-chain
+  // Finish upgrade on-chain (retry if block timestamp hasn't caught up)
   const handleFinishUpgrade = useCallback(async (buildingId: number) => {
     if (!account) return
-    try {
-      await account.execute([
-        {
-          contractAddress: dojoConfig.buildingSystemAddress,
-          entrypoint: 'finish_upgrade',
-          calldata: [buildingId],
-        },
-      ])
-      console.log('Upgrade finished on-chain')
-    } catch (error) {
-      console.error('Failed to finish upgrade:', error)
+    const maxRetries = 3
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await account.execute([
+          {
+            contractAddress: dojoConfig.buildingSystemAddress,
+            entrypoint: 'finish_upgrade',
+            calldata: [buildingId],
+          },
+        ])
+        console.log('Upgrade finished on-chain')
+        return
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error)
+        if (msg.includes('Upgrade not finished') && attempt < maxRetries - 1) {
+          // Block timestamp hasn't caught up yet, wait and retry
+          await new Promise((r) => setTimeout(r, 2000))
+          continue
+        }
+        console.error('Failed to finish upgrade:', error)
+        return
+      }
     }
   }, [account])
 
