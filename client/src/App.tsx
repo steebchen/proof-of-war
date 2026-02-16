@@ -87,8 +87,8 @@ function App() {
       setPlayer({
         address,
         username: 'Player',
-        diamond: BigInt(500),
-        gas: BigInt(500),
+        diamond: BigInt(2000),
+        gas: BigInt(1000),
         trophies: 0,
         townHallLevel: 1,
         buildingCount: 1,

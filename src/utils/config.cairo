@@ -4,8 +4,8 @@ use clash_prototype::models::building::BuildingType;
 pub const GRID_SIZE: u8 = 40;
 
 // Starting resources
-pub const STARTING_DIAMOND: u64 = 500;
-pub const STARTING_GAS: u64 = 500;
+pub const STARTING_DIAMOND: u64 = 2000;
+pub const STARTING_GAS: u64 = 1000;
 
 // Resource production rate: units produced per minute per level.
 // Tune this single value to speed up or slow down all resource generation.
