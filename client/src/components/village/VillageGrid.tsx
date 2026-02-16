@@ -137,12 +137,16 @@ export function VillageGrid() {
   const spritesRef = useRef<Record<number, HTMLImageElement>>({})
   const [spritesLoaded, setSpritesLoaded] = useState(false)
 
-  // Camera zoom (mouse wheel only)
+  // Camera zoom + pan
   const MIN_ZOOM = 0.5
   const MAX_ZOOM = 3.0
   const zoomRef = useRef(1.0)
   const panRef = useRef({ x: 0, y: 0 })
   const [camTick, setCamTick] = useState(0)
+  const isDragging = useRef(false)
+  const didDrag = useRef(false)
+  const dragStart = useRef({ x: 0, y: 0 })
+  const dragPanStart = useRef({ x: 0, y: 0 })
 
   // Load building sprites
   useEffect(() => {
@@ -482,27 +486,51 @@ export function VillageGrid() {
     }
   }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick])
 
-  // Handle mouse move
+  // Handle mouse down (start potential drag)
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    isDragging.current = true
+    didDrag.current = false
+    dragStart.current = { x: e.clientX, y: e.clientY }
+    dragPanStart.current = { ...panRef.current }
+  }, [])
+
+  // Handle mouse move (drag to pan, or update placement preview)
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isDragging.current) {
+      const dx = e.clientX - dragStart.current.x
+      const dy = e.clientY - dragStart.current.y
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        didDrag.current = true
+        panRef.current = {
+          x: dragPanStart.current.x + dx,
+          y: dragPanStart.current.y + dy,
+        }
+        setCamTick((t) => t + 1)
+      }
+    }
     const pos = clientToLogical(e.clientX, e.clientY)
     setMousePos(pos)
   }, [clientToLogical])
 
-  // Handle click
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const pos = clientToLogical(e.clientX, e.clientY)
-    const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
-    if (isPlacing && selectedBuildingType !== null) {
-      placeBuilding(gridX, gridY)
-    } else {
-      const building = getBuildingAt(gridX, gridY)
-      setSelectedBuilding(building?.buildingId ?? null)
+  // Handle mouse up (end drag, fire click if didn't drag)
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    isDragging.current = false
+    if (!didDrag.current) {
+      const pos = clientToLogical(e.clientX, e.clientY)
+      const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
+      if (isPlacing && selectedBuildingType !== null) {
+        placeBuilding(gridX, gridY)
+      } else {
+        const building = getBuildingAt(gridX, gridY)
+        setSelectedBuilding(building?.buildingId ?? null)
+      }
     }
   }, [isPlacing, selectedBuildingType, placeBuilding, getBuildingAt, clientToLogical])
 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
     setMousePos(null)
+    isDragging.current = false
   }, [])
 
   // Skip fee estimation on Katana dev (block timestamp can be stale)
@@ -623,8 +651,9 @@ export function VillageGrid() {
       <canvas
         ref={canvasRef}
         style={styles.canvas}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        onClick={handleClick}
+        onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       />
 
