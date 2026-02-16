@@ -100,6 +100,7 @@ function screenToGrid(sx: number, sy: number): { gx: number; gy: number } {
 
 // Building sprite map (building type → image path in public/)
 const BUILDING_SPRITES: Partial<Record<number, string>> = {
+  [BuildingType.TownHall]: '/buildings/command-center.png',
   [BuildingType.DiamondMine]: '/buildings/diamond-refinery.png',
   [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
   [BuildingType.GasCollector]: '/buildings/gas-extractor.png',
