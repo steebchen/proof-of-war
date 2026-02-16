@@ -24,7 +24,7 @@ pub mod village {
     use clash_prototype::models::building::{Building, BuildingType};
     use clash_prototype::models::army::Army;
     use clash_prototype::utils::config::{
-        STARTING_GOLD, STARTING_ELIXIR, get_building_health
+        STARTING_DIAMOND, STARTING_GAS, get_building_health
     };
 
     #[abi(embed_v0)]
@@ -42,8 +42,8 @@ pub mod village {
             let player = Player {
                 address: player_address,
                 username,
-                gold: STARTING_GOLD,
-                elixir: STARTING_ELIXIR,
+                diamond: STARTING_DIAMOND,
+                gas: STARTING_GAS,
                 trophies: 0,
                 town_hall_level: 1,
                 building_count: 1,

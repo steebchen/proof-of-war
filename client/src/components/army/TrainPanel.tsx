@@ -69,7 +69,7 @@ export function TrainPanel({ onClose }: TrainPanelProps) {
                 onClick={() => setSelectedTroop(Number(type) as TroopType)}
               >
                 <span style={styles.troopName}>{info.name}</span>
-                <span style={styles.troopCost}>{info.cost} Elixir</span>
+                <span style={styles.troopCost}>{info.cost} Gas</span>
               </button>
             ))}
           </div>
@@ -87,7 +87,7 @@ export function TrainPanel({ onClose }: TrainPanelProps) {
           </div>
 
           <div style={styles.costRow}>
-            <span>Total Cost: {totalCost} Elixir</span>
+            <span>Total Cost: {totalCost} Gas</span>
             <span>Space: {totalSpaceNeeded}</span>
           </div>
 
@@ -104,7 +104,7 @@ export function TrainPanel({ onClose }: TrainPanelProps) {
 
           {!canTrain && (
             <p style={styles.warning}>
-              {!canAfford(0, totalCost) ? 'Not enough elixir!' : 'Not enough army capacity!'}
+              {!canAfford(0, totalCost) ? 'Not enough gas!' : 'Not enough army capacity!'}
             </p>
           )}
         </div>

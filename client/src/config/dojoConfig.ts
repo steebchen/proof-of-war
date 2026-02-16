@@ -15,10 +15,10 @@ export const TILE_SIZE = 16
 // Building types enum (must match Cairo)
 export enum BuildingType {
   TownHall = 0,
-  GoldMine = 1,
-  ElixirCollector = 2,
-  GoldStorage = 3,
-  ElixirStorage = 4,
+  DiamondMine = 1,
+  GasCollector = 2,
+  DiamondStorage = 3,
+  GasStorage = 4,
   Barracks = 5,
   ArmyCamp = 6,
   Cannon = 7,
@@ -27,17 +27,17 @@ export enum BuildingType {
 }
 
 // Building display info
-export const BUILDING_INFO: Record<BuildingType, { name: string; color: string; width: number; height: number; cost: { gold: number; elixir: number } }> = {
-  [BuildingType.TownHall]: { name: 'Town Hall', color: '#FFD700', width: 4, height: 4, cost: { gold: 500, elixir: 500 } },
-  [BuildingType.GoldMine]: { name: 'Gold Mine', color: '#FFA500', width: 3, height: 3, cost: { gold: 150, elixir: 0 } },
-  [BuildingType.ElixirCollector]: { name: 'Elixir Collector', color: '#9932CC', width: 3, height: 3, cost: { gold: 150, elixir: 0 } },
-  [BuildingType.GoldStorage]: { name: 'Gold Storage', color: '#DAA520', width: 3, height: 3, cost: { gold: 300, elixir: 0 } },
-  [BuildingType.ElixirStorage]: { name: 'Elixir Storage', color: '#8B008B', width: 3, height: 3, cost: { gold: 300, elixir: 0 } },
-  [BuildingType.Barracks]: { name: 'Barracks', color: '#8B4513', width: 3, height: 3, cost: { gold: 0, elixir: 200 } },
-  [BuildingType.ArmyCamp]: { name: 'Army Camp', color: '#228B22', width: 4, height: 4, cost: { gold: 0, elixir: 250 } },
-  [BuildingType.Cannon]: { name: 'Cannon', color: '#696969', width: 3, height: 3, cost: { gold: 250, elixir: 0 } },
-  [BuildingType.ArcherTower]: { name: 'Archer Tower', color: '#4682B4', width: 3, height: 3, cost: { gold: 0, elixir: 300 } },
-  [BuildingType.Wall]: { name: 'Wall', color: '#808080', width: 1, height: 1, cost: { gold: 50, elixir: 0 } },
+export const BUILDING_INFO: Record<BuildingType, { name: string; color: string; width: number; height: number; cost: { diamond: number; gas: number } }> = {
+  [BuildingType.TownHall]: { name: 'Town Hall', color: '#FFD700', width: 4, height: 4, cost: { diamond: 500, gas: 500 } },
+  [BuildingType.DiamondMine]: { name: 'Diamond Mine', color: '#FFA500', width: 3, height: 3, cost: { diamond: 150, gas: 0 } },
+  [BuildingType.GasCollector]: { name: 'Gas Collector', color: '#9932CC', width: 3, height: 3, cost: { diamond: 150, gas: 0 } },
+  [BuildingType.DiamondStorage]: { name: 'Diamond Storage', color: '#DAA520', width: 3, height: 3, cost: { diamond: 300, gas: 0 } },
+  [BuildingType.GasStorage]: { name: 'Gas Storage', color: '#8B008B', width: 3, height: 3, cost: { diamond: 300, gas: 0 } },
+  [BuildingType.Barracks]: { name: 'Barracks', color: '#8B4513', width: 3, height: 3, cost: { diamond: 0, gas: 200 } },
+  [BuildingType.ArmyCamp]: { name: 'Army Camp', color: '#228B22', width: 4, height: 4, cost: { diamond: 0, gas: 250 } },
+  [BuildingType.Cannon]: { name: 'Cannon', color: '#696969', width: 3, height: 3, cost: { diamond: 250, gas: 0 } },
+  [BuildingType.ArcherTower]: { name: 'Archer Tower', color: '#4682B4', width: 3, height: 3, cost: { diamond: 0, gas: 300 } },
+  [BuildingType.Wall]: { name: 'Wall', color: '#808080', width: 1, height: 1, cost: { diamond: 50, gas: 0 } },
 }
 
 // Troop types

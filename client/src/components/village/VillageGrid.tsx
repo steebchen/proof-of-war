@@ -20,10 +20,10 @@ import {
 // Max levels must match Cairo config
 const MAX_LEVELS: Record<number, number> = {
   [BuildingType.TownHall]: 5,
-  [BuildingType.GoldMine]: 3,
-  [BuildingType.ElixirCollector]: 3,
-  [BuildingType.GoldStorage]: 3,
-  [BuildingType.ElixirStorage]: 3,
+  [BuildingType.DiamondMine]: 3,
+  [BuildingType.GasCollector]: 3,
+  [BuildingType.DiamondStorage]: 3,
+  [BuildingType.GasStorage]: 3,
   [BuildingType.Barracks]: 3,
   [BuildingType.ArmyCamp]: 3,
   [BuildingType.Cannon]: 3,
@@ -32,13 +32,13 @@ const MAX_LEVELS: Record<number, number> = {
 }
 
 // Upgrade costs: base_cost * next_level (must match Cairo)
-function getUpgradeCost(buildingType: number, currentLevel: number): { gold: number; elixir: number } {
+function getUpgradeCost(buildingType: number, currentLevel: number): { diamond: number; gas: number } {
   const info = BUILDING_INFO[buildingType as BuildingType]
-  if (!info) return { gold: 0, elixir: 0 }
+  if (!info) return { diamond: 0, gas: 0 }
   const nextLevel = currentLevel + 1
   return {
-    gold: info.cost.gold * nextLevel,
-    elixir: info.cost.elixir * nextLevel,
+    diamond: info.cost.diamond * nextLevel,
+    gas: info.cost.gas * nextLevel,
   }
 }
 
@@ -49,14 +49,14 @@ function getBuildingStats(buildingType: number, level: number): string {
   const perMin = RESOURCE_PRODUCTION_PER_MIN * level
   const perSec = (perMin / 60).toFixed(2)
   switch (buildingType) {
-    case BuildingType.GoldMine:
-      return `${perSec} gold/sec (${perMin}/min)`
-    case BuildingType.ElixirCollector:
-      return `${perSec} elixir/sec (${perMin}/min)`
-    case BuildingType.GoldStorage:
-      return `Stores ${1500 * level} gold`
-    case BuildingType.ElixirStorage:
-      return `Stores ${1500 * level} elixir`
+    case BuildingType.DiamondMine:
+      return `${perSec} diamond/sec (${perMin}/min)`
+    case BuildingType.GasCollector:
+      return `${perSec} gas/sec (${perMin}/min)`
+    case BuildingType.DiamondStorage:
+      return `Stores ${1500 * level} diamond`
+    case BuildingType.GasStorage:
+      return `Stores ${1500 * level} gas`
     case BuildingType.TownHall:
       return `Stores ${1000 * level} each`
     default:
@@ -98,6 +98,12 @@ function screenToGrid(sx: number, sy: number): { gx: number; gy: number } {
   }
 }
 
+// Building sprite map (building type → image path in public/)
+const BUILDING_SPRITES: Partial<Record<number, string>> = {
+  [BuildingType.DiamondMine]: '/buildings/diamond-refinery.png',
+  [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
+}
+
 function darkenColor(hex: string, factor: number): string {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -126,6 +132,23 @@ export function VillageGrid() {
   const [pending, setPending] = useState(false)
   const [now, setNow] = useState(Math.floor(Date.now() / 1000))
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number }>({ w: ISO_CANVAS_W, h: ISO_CANVAS_H })
+  const spritesRef = useRef<Record<number, HTMLImageElement>>({})
+  const [spritesLoaded, setSpritesLoaded] = useState(false)
+
+  // Load building sprites
+  useEffect(() => {
+    const entries = Object.entries(BUILDING_SPRITES)
+    let loaded = 0
+    for (const [typeStr, path] of entries) {
+      const img = new Image()
+      img.src = path!
+      img.onload = () => {
+        spritesRef.current[Number(typeStr)] = img
+        loaded++
+        if (loaded === entries.length) setSpritesLoaded(true)
+      }
+    }
+  }, [])
 
   // Track container size with ResizeObserver
   useEffect(() => {
@@ -224,7 +247,7 @@ export function VillageGrid() {
     // Sort buildings back-to-front for painter's algorithm
     const sorted = [...buildings].sort((a, b) => (a.x + a.y) - (b.x + b.y))
 
-    // Draw buildings as 3D isometric boxes
+    // Draw buildings as 3D isometric boxes or sprites
     for (const building of sorted) {
       const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
       const baseColor = BUILDING_COLORS[building.buildingType] || '#888'
@@ -248,67 +271,94 @@ export function VillageGrid() {
       const bottomR = { x: bottomG.x, y: bottomG.y - bh }
       const leftR = { x: leftG.x, y: leftG.y - bh }
 
-      // Left face (medium shade - 30% darker)
-      ctx.beginPath()
-      ctx.moveTo(leftG.x, leftG.y)
-      ctx.lineTo(bottomG.x, bottomG.y)
-      ctx.lineTo(bottomR.x, bottomR.y)
-      ctx.lineTo(leftR.x, leftR.y)
-      ctx.closePath()
-      ctx.fillStyle = darkenColor(baseColor, 0.3)
-      ctx.fill()
+      const sprite = spritesRef.current[building.buildingType]
 
-      // Right face (dark shade - 50% darker)
-      ctx.beginPath()
-      ctx.moveTo(rightG.x, rightG.y)
-      ctx.lineTo(bottomG.x, bottomG.y)
-      ctx.lineTo(bottomR.x, bottomR.y)
-      ctx.lineTo(rightR.x, rightR.y)
-      ctx.closePath()
-      ctx.fillStyle = darkenColor(baseColor, 0.5)
-      ctx.fill()
+      if (sprite) {
+        // Draw sprite image
+        const diamondW = rightG.x - leftG.x
+        const spriteScale = 1.4
+        const spriteW = diamondW * spriteScale
+        const spriteH = spriteW // 1:1 aspect ratio
+        const cx = (leftG.x + rightG.x) / 2
+        const drawX = cx - spriteW / 2
+        const drawY = bottomG.y - spriteH * 0.88
 
-      // Top face (base color)
-      ctx.beginPath()
-      ctx.moveTo(topR.x, topR.y)
-      ctx.lineTo(rightR.x, rightR.y)
-      ctx.lineTo(bottomR.x, bottomR.y)
-      ctx.lineTo(leftR.x, leftR.y)
-      ctx.closePath()
-      ctx.fillStyle = baseColor
-      ctx.fill()
+        ctx.drawImage(sprite, drawX, drawY, spriteW, spriteH)
 
-      // Selection border on all 3 faces
-      if (isSelected) {
-        ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 2
+        // Selection highlight: diamond footprint outline
+        if (isSelected) {
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 2
+          ctx.beginPath()
+          ctx.moveTo(topG.x, topG.y)
+          ctx.lineTo(rightG.x, rightG.y)
+          ctx.lineTo(bottomG.x, bottomG.y)
+          ctx.lineTo(leftG.x, leftG.y)
+          ctx.closePath()
+          ctx.stroke()
+        }
+      } else {
+        // 3D box rendering
 
-        // Left face outline
+        // Left face (medium shade - 30% darker)
         ctx.beginPath()
         ctx.moveTo(leftG.x, leftG.y)
         ctx.lineTo(bottomG.x, bottomG.y)
         ctx.lineTo(bottomR.x, bottomR.y)
         ctx.lineTo(leftR.x, leftR.y)
         ctx.closePath()
-        ctx.stroke()
+        ctx.fillStyle = darkenColor(baseColor, 0.3)
+        ctx.fill()
 
-        // Right face outline
+        // Right face (dark shade - 50% darker)
         ctx.beginPath()
         ctx.moveTo(rightG.x, rightG.y)
         ctx.lineTo(bottomG.x, bottomG.y)
         ctx.lineTo(bottomR.x, bottomR.y)
         ctx.lineTo(rightR.x, rightR.y)
         ctx.closePath()
-        ctx.stroke()
+        ctx.fillStyle = darkenColor(baseColor, 0.5)
+        ctx.fill()
 
-        // Top face outline
+        // Top face (base color)
         ctx.beginPath()
         ctx.moveTo(topR.x, topR.y)
         ctx.lineTo(rightR.x, rightR.y)
         ctx.lineTo(bottomR.x, bottomR.y)
         ctx.lineTo(leftR.x, leftR.y)
         ctx.closePath()
-        ctx.stroke()
+        ctx.fillStyle = baseColor
+        ctx.fill()
+
+        // Selection border on all 3 faces
+        if (isSelected) {
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 2
+
+          ctx.beginPath()
+          ctx.moveTo(leftG.x, leftG.y)
+          ctx.lineTo(bottomG.x, bottomG.y)
+          ctx.lineTo(bottomR.x, bottomR.y)
+          ctx.lineTo(leftR.x, leftR.y)
+          ctx.closePath()
+          ctx.stroke()
+
+          ctx.beginPath()
+          ctx.moveTo(rightG.x, rightG.y)
+          ctx.lineTo(bottomG.x, bottomG.y)
+          ctx.lineTo(bottomR.x, bottomR.y)
+          ctx.lineTo(rightR.x, rightR.y)
+          ctx.closePath()
+          ctx.stroke()
+
+          ctx.beginPath()
+          ctx.moveTo(topR.x, topR.y)
+          ctx.lineTo(rightR.x, rightR.y)
+          ctx.lineTo(bottomR.x, bottomR.y)
+          ctx.lineTo(leftR.x, leftR.y)
+          ctx.closePath()
+          ctx.stroke()
+        }
       }
 
       // Level text on top face
@@ -420,7 +470,7 @@ export function VillageGrid() {
 
       ctx.globalAlpha = 1
     }
-  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform])
+  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded])
 
   // Handle mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -572,14 +622,14 @@ export function VillageGrid() {
           {!selectedBuildingData.isUpgrading &&
             selectedBuildingData.level < (MAX_LEVELS[selectedBuildingData.buildingType] ?? 1) && (() => {
               const cost = getUpgradeCost(selectedBuildingData.buildingType, selectedBuildingData.level)
-              const affordable = canAfford(cost.gold, cost.elixir)
+              const affordable = canAfford(cost.diamond, cost.gas)
               const nextStats = getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
 
               return (
                 <div style={styles.upgradeSection}>
                   <div style={styles.upgradeCost}>
-                    {cost.gold > 0 && <span style={{ color: '#FFD700' }}>{cost.gold} gold</span>}
-                    {cost.elixir > 0 && <span style={{ color: '#DA70D6' }}>{cost.elixir} elixir</span>}
+                    {cost.diamond > 0 && <span style={{ color: '#FFD700' }}>{cost.diamond} diamond</span>}
+                    {cost.gas > 0 && <span style={{ color: '#DA70D6' }}>{cost.gas} gas</span>}
                   </div>
                   {nextStats && (
                     <p style={{ ...styles.stat, color: '#888', fontSize: '11px' }}>

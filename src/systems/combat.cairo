@@ -37,8 +37,8 @@ pub struct BattleEnded {
     pub attacker: ContractAddress,
     pub defender: ContractAddress,
     pub destruction_percent: u8,
-    pub gold_stolen: u64,
-    pub elixir_stolen: u64,
+    pub diamond_stolen: u64,
+    pub gas_stolen: u64,
 }
 
 #[dojo::contract]
@@ -86,8 +86,8 @@ pub mod combat_system {
             world.write_model(@counter);
 
             // Calculate loot available
-            let gold_loot = defender_player.gold * LOOT_PERCENTAGE / 100;
-            let elixir_loot = defender_player.elixir * LOOT_PERCENTAGE / 100;
+            let diamond_loot = defender_player.diamond * LOOT_PERCENTAGE / 100;
+            let gas_loot = defender_player.gas * LOOT_PERCENTAGE / 100;
 
             // Create battle
             let battle = Battle {
@@ -98,8 +98,8 @@ pub mod combat_system {
                 started_at: current_time,
                 ends_at: current_time + BATTLE_DURATION,
                 destruction_percent: 0,
-                gold_stolen: 0,
-                elixir_stolen: 0,
+                diamond_stolen: 0,
+                gas_stolen: 0,
                 attacker_trophies_change: 0,
                 defender_trophies_change: 0,
                 deployed_troop_count: 0,
@@ -120,8 +120,8 @@ pub mod combat_system {
                     building_count += 1;
 
                     // Distribute loot across buildings proportionally
-                    let building_gold = gold_loot / defender_player.building_count.into();
-                    let building_elixir = elixir_loot / defender_player.building_count.into();
+                    let building_diamond = diamond_loot / defender_player.building_count.into();
+                    let building_gas = gas_loot / defender_player.building_count.into();
 
                     let battle_building = BattleBuilding {
                         battle_id,
@@ -132,8 +132,8 @@ pub mod combat_system {
                         max_health: building.health,
                         current_health: building.health,
                         is_destroyed: false,
-                        gold_loot: building_gold,
-                        elixir_loot: building_elixir,
+                        diamond_loot: building_diamond,
+                        gas_loot: building_gas,
                     };
                     world.write_model(@battle_building);
                 }
@@ -254,8 +254,8 @@ pub mod combat_system {
                                 target.is_destroyed = true;
 
                                 // Loot the building
-                                battle.gold_stolen += target.gold_loot;
-                                battle.elixir_stolen += target.elixir_loot;
+                                battle.diamond_stolen += target.diamond_loot;
+                                battle.gas_stolen += target.gas_loot;
 
                                 // Calculate destruction percentage
                                 let destroyed_count = self.count_destroyed_buildings(@world, battle_id, battle.building_count);
@@ -369,19 +369,19 @@ pub mod combat_system {
             let mut defender_player: Player = world.read_model(battle.defender);
 
             // Transfer resources
-            attacker_player.gold += battle.gold_stolen;
-            attacker_player.elixir += battle.elixir_stolen;
+            attacker_player.diamond += battle.diamond_stolen;
+            attacker_player.gas += battle.gas_stolen;
 
-            if defender_player.gold >= battle.gold_stolen {
-                defender_player.gold -= battle.gold_stolen;
+            if defender_player.diamond >= battle.diamond_stolen {
+                defender_player.diamond -= battle.diamond_stolen;
             } else {
-                defender_player.gold = 0;
+                defender_player.diamond = 0;
             }
 
-            if defender_player.elixir >= battle.elixir_stolen {
-                defender_player.elixir -= battle.elixir_stolen;
+            if defender_player.gas >= battle.gas_stolen {
+                defender_player.gas -= battle.gas_stolen;
             } else {
-                defender_player.elixir = 0;
+                defender_player.gas = 0;
             }
 
             // Calculate trophy changes based on destruction
@@ -428,8 +428,8 @@ pub mod combat_system {
                 attacker: battle.attacker,
                 defender: battle.defender,
                 destruction_percent: battle.destruction_percent,
-                gold_stolen: battle.gold_stolen,
-                elixir_stolen: battle.elixir_stolen,
+                diamond_stolen: battle.diamond_stolen,
+                gas_stolen: battle.gas_stolen,
             });
         }
 

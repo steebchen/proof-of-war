@@ -4,39 +4,39 @@ use clash_prototype::models::building::BuildingType;
 pub const GRID_SIZE: u8 = 40;
 
 // Starting resources
-pub const STARTING_GOLD: u64 = 500;
-pub const STARTING_ELIXIR: u64 = 500;
+pub const STARTING_DIAMOND: u64 = 500;
+pub const STARTING_GAS: u64 = 500;
 
 // Resource production rate: units produced per minute per level.
 // Tune this single value to speed up or slow down all resource generation.
 pub const RESOURCE_PRODUCTION_PER_MIN: u64 = 10;
 
-// Building costs (gold, elixir) per type
+// Building costs (diamond, gas) per type
 #[derive(Copy, Drop)]
 pub struct BuildingCost {
-    pub gold: u64,
-    pub elixir: u64,
+    pub diamond: u64,
+    pub gas: u64,
 }
 
 pub fn get_building_cost(building_type: BuildingType, level: u8) -> BuildingCost {
     // Base costs for level 1
     let base_cost = match building_type {
-        BuildingType::TownHall => BuildingCost { gold: 500, elixir: 500 },
-        BuildingType::GoldMine => BuildingCost { gold: 150, elixir: 0 },
-        BuildingType::ElixirCollector => BuildingCost { gold: 150, elixir: 0 },
-        BuildingType::GoldStorage => BuildingCost { gold: 300, elixir: 0 },
-        BuildingType::ElixirStorage => BuildingCost { gold: 300, elixir: 0 },
-        BuildingType::Barracks => BuildingCost { gold: 0, elixir: 200 },
-        BuildingType::ArmyCamp => BuildingCost { gold: 0, elixir: 250 },
-        BuildingType::Cannon => BuildingCost { gold: 250, elixir: 0 },
-        BuildingType::ArcherTower => BuildingCost { gold: 0, elixir: 300 },
-        BuildingType::Wall => BuildingCost { gold: 50, elixir: 0 },
+        BuildingType::TownHall => BuildingCost { diamond: 500, gas: 500 },
+        BuildingType::DiamondMine => BuildingCost { diamond: 150, gas: 0 },
+        BuildingType::GasCollector => BuildingCost { diamond: 150, gas: 0 },
+        BuildingType::DiamondStorage => BuildingCost { diamond: 300, gas: 0 },
+        BuildingType::GasStorage => BuildingCost { diamond: 300, gas: 0 },
+        BuildingType::Barracks => BuildingCost { diamond: 0, gas: 200 },
+        BuildingType::ArmyCamp => BuildingCost { diamond: 0, gas: 250 },
+        BuildingType::Cannon => BuildingCost { diamond: 250, gas: 0 },
+        BuildingType::ArcherTower => BuildingCost { diamond: 0, gas: 300 },
+        BuildingType::Wall => BuildingCost { diamond: 50, gas: 0 },
     };
 
     // Scale cost by level (multiply by level for simplicity)
     BuildingCost {
-        gold: base_cost.gold * level.into(),
-        elixir: base_cost.elixir * level.into(),
+        diamond: base_cost.diamond * level.into(),
+        gas: base_cost.gas * level.into(),
     }
 }
 
@@ -44,10 +44,10 @@ pub fn get_building_cost(building_type: BuildingType, level: u8) -> BuildingCost
 pub fn get_building_health(building_type: BuildingType, level: u8) -> u32 {
     let base_health: u32 = match building_type {
         BuildingType::TownHall => 1500,
-        BuildingType::GoldMine => 400,
-        BuildingType::ElixirCollector => 400,
-        BuildingType::GoldStorage => 500,
-        BuildingType::ElixirStorage => 500,
+        BuildingType::DiamondMine => 400,
+        BuildingType::GasCollector => 400,
+        BuildingType::DiamondStorage => 500,
+        BuildingType::GasStorage => 500,
         BuildingType::Barracks => 350,
         BuildingType::ArmyCamp => 300,
         BuildingType::Cannon => 420,
@@ -62,8 +62,8 @@ pub fn get_building_health(building_type: BuildingType, level: u8) -> u32 {
 // Storage capacity per level
 pub fn get_storage_capacity(building_type: BuildingType, level: u8) -> u64 {
     let base_capacity: u64 = match building_type {
-        BuildingType::GoldStorage => 1500,
-        BuildingType::ElixirStorage => 1500,
+        BuildingType::DiamondStorage => 1500,
+        BuildingType::GasStorage => 1500,
         BuildingType::TownHall => 1000, // Town hall has some storage
         _ => 0,
     };
@@ -104,10 +104,10 @@ pub fn get_defense_stats(building_type: BuildingType, level: u8) -> DefenseStats
 pub fn get_max_level(building_type: BuildingType) -> u8 {
     match building_type {
         BuildingType::TownHall => 5,
-        BuildingType::GoldMine => 3,
-        BuildingType::ElixirCollector => 3,
-        BuildingType::GoldStorage => 3,
-        BuildingType::ElixirStorage => 3,
+        BuildingType::DiamondMine => 3,
+        BuildingType::GasCollector => 3,
+        BuildingType::DiamondStorage => 3,
+        BuildingType::GasStorage => 3,
         BuildingType::Barracks => 3,
         BuildingType::ArmyCamp => 3,
         BuildingType::Cannon => 3,
@@ -120,10 +120,10 @@ pub fn get_max_level(building_type: BuildingType) -> u8 {
 pub fn get_max_building_count(building_type: BuildingType, town_hall_level: u8) -> u8 {
     match building_type {
         BuildingType::TownHall => 1,
-        BuildingType::GoldMine => town_hall_level + 1,
-        BuildingType::ElixirCollector => town_hall_level + 1,
-        BuildingType::GoldStorage => town_hall_level,
-        BuildingType::ElixirStorage => town_hall_level,
+        BuildingType::DiamondMine => town_hall_level + 1,
+        BuildingType::GasCollector => town_hall_level + 1,
+        BuildingType::DiamondStorage => town_hall_level,
+        BuildingType::GasStorage => town_hall_level,
         BuildingType::Barracks => 1 + (town_hall_level / 3),
         BuildingType::ArmyCamp => 1 + (town_hall_level / 2),
         BuildingType::Cannon => town_hall_level,
@@ -136,10 +136,10 @@ pub fn get_max_building_count(building_type: BuildingType, town_hall_level: u8) 
 pub fn get_upgrade_time(building_type: BuildingType, level: u8) -> u64 {
     let base_time: u64 = match building_type {
         BuildingType::TownHall => 3600, // 1 hour
-        BuildingType::GoldMine => 300,  // 5 minutes
-        BuildingType::ElixirCollector => 300,
-        BuildingType::GoldStorage => 600,
-        BuildingType::ElixirStorage => 600,
+        BuildingType::DiamondMine => 300,  // 5 minutes
+        BuildingType::GasCollector => 300,
+        BuildingType::DiamondStorage => 600,
+        BuildingType::GasStorage => 600,
         BuildingType::Barracks => 900,
         BuildingType::ArmyCamp => 600,
         BuildingType::Cannon => 900,

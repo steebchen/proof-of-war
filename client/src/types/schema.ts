@@ -5,8 +5,8 @@ export type ClashSchemaType = {
     Player: {
       address: string
       username: string // felt252 as hex string
-      gold: string // u64 as string
-      elixir: string // u64 as string
+      diamond: string // u64 as string
+      gas: string // u64 as string
       trophies: string // u32 as string
       town_hall_level: string // u8 as string
       building_count: string // u32 as string

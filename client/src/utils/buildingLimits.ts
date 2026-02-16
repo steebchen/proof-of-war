@@ -9,13 +9,13 @@ export function getMaxBuildingCount(buildingType: BuildingType, townHallLevel: n
   switch (buildingType) {
     case BuildingType.TownHall:
       return 1
-    case BuildingType.GoldMine:
+    case BuildingType.DiamondMine:
       return townHallLevel + 1
-    case BuildingType.ElixirCollector:
+    case BuildingType.GasCollector:
       return townHallLevel + 1
-    case BuildingType.GoldStorage:
+    case BuildingType.DiamondStorage:
       return townHallLevel
-    case BuildingType.ElixirStorage:
+    case BuildingType.GasStorage:
       return townHallLevel
     case BuildingType.Barracks:
       return 1 + Math.floor(townHallLevel / 3)

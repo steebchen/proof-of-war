@@ -167,8 +167,8 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
           <>
             <div style={styles.battleInfo}>
               <span>Destruction: {currentBattle.destructionPercent}%</span>
-              <span>Gold: {currentBattle.goldStolen.toString()}</span>
-              <span>Elixir: {currentBattle.elixirStolen.toString()}</span>
+              <span>Diamond: {currentBattle.diamondStolen.toString()}</span>
+              <span>Gas: {currentBattle.gasStolen.toString()}</span>
             </div>
 
             <canvas

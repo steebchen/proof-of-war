@@ -11,8 +11,8 @@ pub trait IResource<T> {
 pub struct ResourcesCollected {
     #[key]
     pub player: ContractAddress,
-    pub gold_collected: u64,
-    pub elixir_collected: u64,
+    pub diamond_collected: u64,
+    pub gas_collected: u64,
 }
 
 #[dojo::contract]
@@ -41,12 +41,12 @@ pub mod resource_system {
             assert(player.town_hall_level > 0, 'Player not spawned');
 
             // Calculate storage capacity
-            let (gold_capacity, elixir_capacity) = self.calculate_storage_capacity(
+            let (diamond_capacity, gas_capacity) = self.calculate_storage_capacity(
                 @world, player_address, player.building_count
             );
 
-            let mut total_gold_collected: u64 = 0;
-            let mut total_elixir_collected: u64 = 0;
+            let mut total_diamond_collected: u64 = 0;
+            let mut total_gas_collected: u64 = 0;
 
             // Iterate through all buildings
             let mut i: u32 = 1;
@@ -58,16 +58,16 @@ pub mod resource_system {
                 let mut building: Building = world.read_model((player_address, i));
 
                 if building.level > 0 {
-                    let (gold, elixir) = self.calculate_production(
+                    let (diamond, gas) = self.calculate_production(
                         building.building_type,
                         building.level,
                         building.last_collected_at,
                         current_time
                     );
 
-                    if gold > 0 || elixir > 0 {
-                        total_gold_collected += gold;
-                        total_elixir_collected += elixir;
+                    if diamond > 0 || gas > 0 {
+                        total_diamond_collected += diamond;
+                        total_gas_collected += gas;
 
                         building.last_collected_at = current_time;
                         world.write_model(@building);
@@ -78,27 +78,27 @@ pub mod resource_system {
             };
 
             // Check storage capacity - error if completely full for a resource being produced
-            if total_gold_collected > 0 {
-                assert(player.gold < gold_capacity, 'Gold storage full');
+            if total_diamond_collected > 0 {
+                assert(player.diamond < diamond_capacity, 'Diamond storage full');
             }
-            if total_elixir_collected > 0 {
-                assert(player.elixir < elixir_capacity, 'Elixir storage full');
+            if total_gas_collected > 0 {
+                assert(player.gas < gas_capacity, 'Gas storage full');
             }
 
             // Apply to player resources (cap at storage capacity)
-            let gold_added = if player.gold + total_gold_collected > gold_capacity {
-                gold_capacity - player.gold
+            let diamond_added = if player.diamond + total_diamond_collected > diamond_capacity {
+                diamond_capacity - player.diamond
             } else {
-                total_gold_collected
+                total_diamond_collected
             };
-            let elixir_added = if player.elixir + total_elixir_collected > elixir_capacity {
-                elixir_capacity - player.elixir
+            let gas_added = if player.gas + total_gas_collected > gas_capacity {
+                gas_capacity - player.gas
             } else {
-                total_elixir_collected
+                total_gas_collected
             };
 
-            player.gold += gold_added;
-            player.elixir += elixir_added;
+            player.diamond += diamond_added;
+            player.gas += gas_added;
 
             player.last_collected_at = current_time;
             world.write_model(@player);
@@ -106,8 +106,8 @@ pub mod resource_system {
             // Emit event
             world.emit_event(@ResourcesCollected {
                 player: player_address,
-                gold_collected: gold_added,
-                elixir_collected: elixir_added,
+                diamond_collected: diamond_added,
+                gas_collected: gas_added,
             });
         }
 
@@ -124,7 +124,7 @@ pub mod resource_system {
             assert(building.level > 0, 'Building not found');
 
             // Calculate production
-            let (gold, elixir) = self.calculate_production(
+            let (diamond, gas) = self.calculate_production(
                 building.building_type,
                 building.level,
                 building.last_collected_at,
@@ -132,32 +132,32 @@ pub mod resource_system {
             );
 
             // Calculate storage capacity
-            let (gold_capacity, elixir_capacity) = self.calculate_storage_capacity(
+            let (diamond_capacity, gas_capacity) = self.calculate_storage_capacity(
                 @world, player_address, player.building_count
             );
 
             // Check storage capacity
-            if gold > 0 {
-                assert(player.gold < gold_capacity, 'Gold storage full');
+            if diamond > 0 {
+                assert(player.diamond < diamond_capacity, 'Diamond storage full');
             }
-            if elixir > 0 {
-                assert(player.elixir < elixir_capacity, 'Elixir storage full');
+            if gas > 0 {
+                assert(player.gas < gas_capacity, 'Gas storage full');
             }
 
             // Apply to player resources (cap at storage capacity)
-            let gold_added = if player.gold + gold > gold_capacity {
-                gold_capacity - player.gold
+            let diamond_added = if player.diamond + diamond > diamond_capacity {
+                diamond_capacity - player.diamond
             } else {
-                gold
+                diamond
             };
-            let elixir_added = if player.elixir + elixir > elixir_capacity {
-                elixir_capacity - player.elixir
+            let gas_added = if player.gas + gas > gas_capacity {
+                gas_capacity - player.gas
             } else {
-                elixir
+                gas
             };
 
-            player.gold += gold_added;
-            player.elixir += elixir_added;
+            player.diamond += diamond_added;
+            player.gas += gas_added;
             world.write_model(@player);
 
             // Update building's last collected time
@@ -167,8 +167,8 @@ pub mod resource_system {
             // Emit event
             world.emit_event(@ResourcesCollected {
                 player: player_address,
-                gold_collected: gold_added,
-                elixir_collected: elixir_added,
+                diamond_collected: diamond_added,
+                gas_collected: gas_added,
             });
         }
     }
@@ -194,8 +194,8 @@ pub mod resource_system {
 
             let production = RESOURCE_PRODUCTION_PER_MIN * elapsed_minutes * level.into();
             match building_type {
-                BuildingType::GoldMine => (production, 0),
-                BuildingType::ElixirCollector => (0, production),
+                BuildingType::DiamondMine => (production, 0),
+                BuildingType::GasCollector => (0, production),
                 _ => (0, 0),
             }
         }
@@ -206,8 +206,8 @@ pub mod resource_system {
             owner: ContractAddress,
             building_count: u32
         ) -> (u64, u64) {
-            let mut gold_capacity: u64 = 0;
-            let mut elixir_capacity: u64 = 0;
+            let mut diamond_capacity: u64 = 0;
+            let mut gas_capacity: u64 = 0;
 
             let mut i: u32 = 1;
             loop {
@@ -221,14 +221,14 @@ pub mod resource_system {
                         BuildingType::TownHall => {
                             // Town hall stores both
                             let cap = get_storage_capacity(building.building_type, building.level);
-                            gold_capacity += cap;
-                            elixir_capacity += cap;
+                            diamond_capacity += cap;
+                            gas_capacity += cap;
                         },
-                        BuildingType::GoldStorage => {
-                            gold_capacity += get_storage_capacity(building.building_type, building.level);
+                        BuildingType::DiamondStorage => {
+                            diamond_capacity += get_storage_capacity(building.building_type, building.level);
                         },
-                        BuildingType::ElixirStorage => {
-                            elixir_capacity += get_storage_capacity(building.building_type, building.level);
+                        BuildingType::GasStorage => {
+                            gas_capacity += get_storage_capacity(building.building_type, building.level);
                         },
                         _ => {},
                     }
@@ -237,7 +237,7 @@ pub mod resource_system {
                 i += 1;
             };
 
-            (gold_capacity, elixir_capacity)
+            (diamond_capacity, gas_capacity)
         }
     }
 }

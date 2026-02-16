@@ -12,7 +12,7 @@ pub struct TroopConfig {
     pub health: u32,
     pub damage: u32,
     pub training_time: u64,      // seconds
-    pub training_cost_elixir: u64,
+    pub training_cost_gas: u64,
     pub housing_space: u8,
     pub attack_range: u8,        // 1 = melee, >1 = ranged
     pub movement_speed: u8,
@@ -25,7 +25,7 @@ pub fn get_troop_config(troop_type: TroopType) -> TroopConfig {
             health: 45,
             damage: 8,
             training_time: 20,
-            training_cost_elixir: 25,
+            training_cost_gas: 25,
             housing_space: 1,
             attack_range: 1,
             movement_speed: 2,
@@ -35,7 +35,7 @@ pub fn get_troop_config(troop_type: TroopType) -> TroopConfig {
             health: 20,
             damage: 7,
             training_time: 25,
-            training_cost_elixir: 50,
+            training_cost_gas: 50,
             housing_space: 1,
             attack_range: 4,
             movement_speed: 2,

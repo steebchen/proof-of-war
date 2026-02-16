@@ -11,7 +11,7 @@ interface BottomBarProps {
 
 export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
   const { isPlacing, selectedBuildingType, startPlacing, cancelPlacing } = useBuildings()
-  const { gold, elixir, canAfford } = useResources()
+  const { diamond, gas, canAfford } = useResources()
   const { player, buildings } = useDojo()
 
   const townHallLevel = player?.townHallLevel ?? 1
@@ -31,7 +31,7 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
         <h3 style={styles.sectionTitle}>Buildings</h3>
         <div style={styles.buildingGrid}>
           {availableBuildings.map((building) => {
-            const affordable = canAfford(building.cost.gold, building.cost.elixir)
+            const affordable = canAfford(building.cost.diamond, building.cost.gas)
             const limitInfo = limits[building.type]
             const atLimit = !limitInfo.canBuild
             const isSelected = isPlacing && selectedBuildingType === building.type
@@ -42,10 +42,10 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
             if (atLimit) {
               disabledReason = 'Max built'
             } else if (!affordable) {
-              if (building.cost.gold > 0 && gold < BigInt(building.cost.gold)) {
-                disabledReason = `Need ${building.cost.gold - Number(gold)} gold`
-              } else if (building.cost.elixir > 0 && elixir < BigInt(building.cost.elixir)) {
-                disabledReason = `Need ${building.cost.elixir - Number(elixir)} elixir`
+              if (building.cost.diamond > 0 && diamond < BigInt(building.cost.diamond)) {
+                disabledReason = `Need ${building.cost.diamond - Number(diamond)} diamond`
+              } else if (building.cost.gas > 0 && gas < BigInt(building.cost.gas)) {
+                disabledReason = `Need ${building.cost.gas - Number(gas)} gas`
               }
             }
 
@@ -66,11 +66,11 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
                 </button>
                 {/* Cost display */}
                 <div style={styles.costRow}>
-                  {building.cost.gold > 0 && (
-                    <span style={styles.goldCost}>{building.cost.gold}g</span>
+                  {building.cost.diamond > 0 && (
+                    <span style={styles.diamondCost}>{building.cost.diamond}d</span>
                   )}
-                  {building.cost.elixir > 0 && (
-                    <span style={styles.elixirCost}>{building.cost.elixir}e</span>
+                  {building.cost.gas > 0 && (
+                    <span style={styles.gasCost}>{building.cost.gas}g</span>
                   )}
                 </div>
                 {/* Limit badge */}
@@ -171,10 +171,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '10px',
     fontWeight: 'bold',
   },
-  goldCost: {
+  diamondCost: {
     color: '#FFD700',
   },
-  elixirCost: {
+  gasCost: {
     color: '#DA70D6',
   },
   limitBadge: {

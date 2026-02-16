@@ -7,8 +7,8 @@ export interface BattleState {
   defender: string
   status: 'preparing' | 'inProgress' | 'ended'
   destructionPercent: number
-  goldStolen: bigint
-  elixirStolen: bigint
+  diamondStolen: bigint
+  gasStolen: bigint
 }
 
 export function useAttack() {
@@ -27,8 +27,8 @@ export function useAttack() {
       defender: defenderAddress,
       status: 'preparing',
       destructionPercent: 0,
-      goldStolen: BigInt(0),
-      elixirStolen: BigInt(0),
+      diamondStolen: BigInt(0),
+      gasStolen: BigInt(0),
     }
 
     setCurrentBattle(battle)
@@ -67,8 +67,8 @@ export function useAttack() {
     setCurrentBattle({
       ...currentBattle,
       destructionPercent: newDestruction,
-      goldStolen: currentBattle.goldStolen + BigInt(50),
-      elixirStolen: currentBattle.elixirStolen + BigInt(50),
+      diamondStolen: currentBattle.diamondStolen + BigInt(50),
+      gasStolen: currentBattle.gasStolen + BigInt(50),
     })
 
     return true

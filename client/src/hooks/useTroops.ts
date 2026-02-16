@@ -29,7 +29,7 @@ export function useTroops() {
 
     // Check if we can afford
     if (!canAfford(0, totalCost)) {
-      console.error('Not enough elixir')
+      console.error('Not enough gas')
       return false
     }
 

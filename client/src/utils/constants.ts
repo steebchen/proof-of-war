@@ -12,10 +12,10 @@ export const TOP_PADDING = 40
 // Building heights (pixels) for isometric 3D boxes
 export const BUILDING_HEIGHTS: Record<number, number> = {
   0: 24, // TownHall
-  1: 14, // GoldMine
-  2: 14, // ElixirCollector
-  3: 14, // GoldStorage
-  4: 14, // ElixirStorage
+  1: 14, // DiamondMine
+  2: 14, // GasCollector
+  3: 14, // DiamondStorage
+  4: 14, // GasStorage
   5: 18, // Barracks
   6: 18, // ArmyCamp
   7: 18, // Cannon
@@ -29,17 +29,17 @@ export const COLORS = {
   gridLine: 'rgba(255, 255, 255, 0.1)',
   selectionValid: 'rgba(0, 255, 0, 0.3)',
   selectionInvalid: 'rgba(255, 0, 0, 0.3)',
-  gold: '#FFD700',
-  elixir: '#9932CC',
+  diamond: '#FFD700',
+  gas: '#9932CC',
 }
 
 // Building sizes (in tiles)
 export const BUILDING_SIZES: Record<number, { width: number; height: number }> = {
   0: { width: 4, height: 4 }, // TownHall
-  1: { width: 3, height: 3 }, // GoldMine
-  2: { width: 3, height: 3 }, // ElixirCollector
-  3: { width: 3, height: 3 }, // GoldStorage
-  4: { width: 3, height: 3 }, // ElixirStorage
+  1: { width: 3, height: 3 }, // DiamondMine
+  2: { width: 3, height: 3 }, // GasCollector
+  3: { width: 3, height: 3 }, // DiamondStorage
+  4: { width: 3, height: 3 }, // GasStorage
   5: { width: 3, height: 3 }, // Barracks
   6: { width: 4, height: 4 }, // ArmyCamp
   7: { width: 3, height: 3 }, // Cannon
@@ -49,11 +49,11 @@ export const BUILDING_SIZES: Record<number, { width: number; height: number }> =
 
 // Building colors
 export const BUILDING_COLORS: Record<number, string> = {
-  0: '#FFD700', // TownHall - Gold
-  1: '#FFA500', // GoldMine - Orange
-  2: '#9932CC', // ElixirCollector - Purple
-  3: '#DAA520', // GoldStorage - Goldenrod
-  4: '#8B008B', // ElixirStorage - Dark Magenta
+  0: '#FFD700', // TownHall
+  1: '#FFA500', // DiamondMine - Orange
+  2: '#9932CC', // GasCollector - Purple
+  3: '#DAA520', // DiamondStorage - Goldenrod
+  4: '#8B008B', // GasStorage - Dark Magenta
   5: '#8B4513', // Barracks - Saddle Brown
   6: '#228B22', // ArmyCamp - Forest Green
   7: '#696969', // Cannon - Dim Gray
@@ -64,10 +64,10 @@ export const BUILDING_COLORS: Record<number, string> = {
 // Building names
 export const BUILDING_NAMES: Record<number, string> = {
   0: 'Town Hall',
-  1: 'Gold Mine',
-  2: 'Elixir Collector',
-  3: 'Gold Storage',
-  4: 'Elixir Storage',
+  1: 'Diamond Mine',
+  2: 'Gas Collector',
+  3: 'Diamond Storage',
+  4: 'Gas Storage',
   5: 'Barracks',
   6: 'Army Camp',
   7: 'Cannon',

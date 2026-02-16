@@ -9,8 +9,8 @@ import { ClashSchemaType, MODELS } from '../types/schema'
 export interface Player {
   address: string
   username: string
-  gold: bigint
-  elixir: bigint
+  diamond: bigint
+  gas: bigint
   trophies: number
   townHallLevel: number
   buildingCount: number
@@ -89,10 +89,10 @@ function parseBuildingType(typeData: unknown): number {
     // Map enum names to values
     const enumMap: Record<string, number> = {
       'TownHall': BuildingType.TownHall,
-      'GoldMine': BuildingType.GoldMine,
-      'ElixirCollector': BuildingType.ElixirCollector,
-      'GoldStorage': BuildingType.GoldStorage,
-      'ElixirStorage': BuildingType.ElixirStorage,
+      'DiamondMine': BuildingType.DiamondMine,
+      'GasCollector': BuildingType.GasCollector,
+      'DiamondStorage': BuildingType.DiamondStorage,
+      'GasStorage': BuildingType.GasStorage,
       'Barracks': BuildingType.Barracks,
       'ArmyCamp': BuildingType.ArmyCamp,
       'Cannon': BuildingType.Cannon,
@@ -102,11 +102,11 @@ function parseBuildingType(typeData: unknown): number {
     return enumMap[typeData] ?? 0
   }
   if (typeof typeData === 'object' && typeData !== null) {
-    // Could be { variant: 'GoldMine' } or { type: 'GoldMine' }
+    // Could be { variant: 'DiamondMine' } or { type: 'DiamondMine' }
     const obj = typeData as Record<string, unknown>
     if ('variant' in obj) return parseBuildingType(obj.variant)
     if ('type' in obj) return parseBuildingType(obj.type)
-    // Could be { GoldMine: {} } format
+    // Could be { DiamondMine: {} } format
     const keys = Object.keys(obj)
     if (keys.length === 1) return parseBuildingType(keys[0])
   }
@@ -118,8 +118,8 @@ function transformPlayer(data: ClashSchemaType['clash']['Player'], address: stri
   return {
     address,
     username: hexToString(data.username),
-    gold: BigInt(data.gold || '0'),
-    elixir: BigInt(data.elixir || '0'),
+    diamond: BigInt(data.diamond || '0'),
+    gas: BigInt(data.gas || '0'),
     trophies: parseInt(data.trophies || '0', 10),
     townHallLevel: parseInt(data.town_hall_level || '1', 10),
     buildingCount: parseInt(data.building_count || '0', 10),

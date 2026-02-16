@@ -65,8 +65,8 @@ pub mod building_system {
 
             // Check resources
             let cost = get_building_cost(building_type, 1);
-            assert(player.gold >= cost.gold, 'Not enough gold');
-            assert(player.elixir >= cost.elixir, 'Not enough elixir');
+            assert(player.diamond >= cost.diamond, 'Not enough diamond');
+            assert(player.gas >= cost.gas, 'Not enough gas');
 
             // Check position is valid (within grid and doesn't overlap)
             let (width, height) = get_building_size(building_type);
@@ -77,8 +77,8 @@ pub mod building_system {
             assert(!has_collision, 'Building collision');
 
             // Deduct resources
-            player.gold -= cost.gold;
-            player.elixir -= cost.elixir;
+            player.diamond -= cost.diamond;
+            player.gas -= cost.gas;
             player.building_count += 1;
             world.write_model(@player);
 
@@ -129,12 +129,12 @@ pub mod building_system {
 
             // Check upgrade resources (next level cost)
             let cost = get_building_cost(building.building_type, building.level + 1);
-            assert(player.gold >= cost.gold, 'Not enough gold');
-            assert(player.elixir >= cost.elixir, 'Not enough elixir');
+            assert(player.diamond >= cost.diamond, 'Not enough diamond');
+            assert(player.gas >= cost.gas, 'Not enough gas');
 
             // Deduct resources
-            player.gold -= cost.gold;
-            player.elixir -= cost.elixir;
+            player.diamond -= cost.diamond;
+            player.gas -= cost.gas;
             world.write_model(@player);
 
             // Start upgrade

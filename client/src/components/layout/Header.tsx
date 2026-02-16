@@ -7,7 +7,7 @@ export function Header() {
   const { address, isConnected } = useAccount()
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
-  const { gold, elixir, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
+  const { diamond, gas, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
   const { player, isConnected: toriiConnected } = useDojo()
 
   const formatNumber = (n: bigint): string => {
@@ -33,12 +33,12 @@ export function Header() {
         {player && (
           <>
             <div style={styles.resource}>
-              <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.gold }}>G</span>
-              <span style={styles.resourceValue}>{formatNumber(gold)}</span>
+              <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.diamond }}>D</span>
+              <span style={styles.resourceValue}>{formatNumber(diamond)}</span>
             </div>
             <div style={styles.resource}>
-              <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.elixir }}>E</span>
-              <span style={styles.resourceValue}>{formatNumber(elixir)}</span>
+              <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.gas }}>G</span>
+              <span style={styles.resourceValue}>{formatNumber(gas)}</span>
             </div>
             <div style={{ position: 'relative' }}>
               <button
@@ -53,14 +53,14 @@ export function Header() {
                 {collecting ? 'Collecting...'
                   : lastCollection ? 'Collected!'
                   : canCollect
-                    ? `Collect${pending.gold > 0 ? ` +${pending.gold}g` : ''}${pending.elixir > 0 ? ` +${pending.elixir}e` : ''}`
+                    ? `Collect${pending.diamond > 0 ? ` +${pending.diamond}d` : ''}${pending.gas > 0 ? ` +${pending.gas}g` : ''}`
                     : 'Nothing to collect'}
               </button>
               {lastCollection && (
                 <div style={styles.collectionToast}>
-                  {lastCollection.gold > 0 && <span style={{ color: '#FFD700' }}>+{lastCollection.gold} gold</span>}
-                  {lastCollection.gold > 0 && lastCollection.elixir > 0 && <span> </span>}
-                  {lastCollection.elixir > 0 && <span style={{ color: '#DA70D6' }}>+{lastCollection.elixir} elixir</span>}
+                  {lastCollection.diamond > 0 && <span style={{ color: '#FFD700' }}>+{lastCollection.diamond} diamond</span>}
+                  {lastCollection.diamond > 0 && lastCollection.gas > 0 && <span> </span>}
+                  {lastCollection.gas > 0 && <span style={{ color: '#DA70D6' }}>+{lastCollection.gas} gas</span>}
                 </div>
               )}
             </div>

@@ -22,16 +22,16 @@ export function BattleResult({ battle, onClose }: BattleResultProps) {
           </div>
 
           <div style={styles.stat}>
-            <span style={styles.label}>Gold Stolen</span>
+            <span style={styles.label}>Diamond Stolen</span>
             <span style={{ ...styles.value, color: '#FFD700' }}>
-              {battle.goldStolen.toString()}
+              {battle.diamondStolen.toString()}
             </span>
           </div>
 
           <div style={styles.stat}>
-            <span style={styles.label}>Elixir Stolen</span>
+            <span style={styles.label}>Gas Stolen</span>
             <span style={{ ...styles.value, color: '#9932CC' }}>
-              {battle.elixirStolen.toString()}
+              {battle.gasStolen.toString()}
             </span>
           </div>
         </div>

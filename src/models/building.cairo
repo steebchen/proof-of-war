@@ -4,10 +4,10 @@ use starknet::ContractAddress;
 pub enum BuildingType {
     #[default]
     TownHall,
-    GoldMine,
-    ElixirCollector,
-    GoldStorage,
-    ElixirStorage,
+    DiamondMine,
+    GasCollector,
+    DiamondStorage,
+    GasStorage,
     Barracks,
     ArmyCamp,
     Cannon,
@@ -36,10 +36,10 @@ pub struct Building {
 pub fn get_building_size(building_type: BuildingType) -> (u8, u8) {
     match building_type {
         BuildingType::TownHall => (4, 4),
-        BuildingType::GoldMine => (3, 3),
-        BuildingType::ElixirCollector => (3, 3),
-        BuildingType::GoldStorage => (3, 3),
-        BuildingType::ElixirStorage => (3, 3),
+        BuildingType::DiamondMine => (3, 3),
+        BuildingType::GasCollector => (3, 3),
+        BuildingType::DiamondStorage => (3, 3),
+        BuildingType::GasStorage => (3, 3),
         BuildingType::Barracks => (3, 3),
         BuildingType::ArmyCamp => (4, 4),
         BuildingType::Cannon => (3, 3),

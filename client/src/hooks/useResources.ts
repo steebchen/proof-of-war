@@ -7,8 +7,8 @@ import { dojoConfig, BuildingType } from '../config/dojoConfig'
 const RESOURCE_PRODUCTION_PER_MIN = 10
 
 export interface CollectionResult {
-  gold: number
-  elixir: number
+  diamond: number
+  gas: number
 }
 
 export function useResources() {
@@ -19,14 +19,14 @@ export function useResources() {
   // Track when we last collected locally so estimates reset immediately
   const localCollectTime = useRef<number>(0)
 
-  const gold = player?.gold ?? BigInt(0)
-  const elixir = player?.elixir ?? BigInt(0)
+  const diamond = player?.diamond ?? BigInt(0)
+  const gas = player?.gas ?? BigInt(0)
 
   // Estimate pending resources based on building levels and time elapsed
   const estimatePending = useCallback((): CollectionResult => {
     const now = Math.floor(Date.now() / 1000)
-    let pendingGold = 0
-    let pendingElixir = 0
+    let pendingDiamond = 0
+    let pendingGas = 0
 
     for (const b of buildings) {
       if (b.level === 0 || b.lastCollectedAt === BigInt(0)) continue
@@ -37,17 +37,17 @@ export function useResources() {
       if (minutes <= 0) continue
 
       const production = RESOURCE_PRODUCTION_PER_MIN * minutes * b.level
-      if (b.buildingType === BuildingType.GoldMine) {
-        pendingGold += production
-      } else if (b.buildingType === BuildingType.ElixirCollector) {
-        pendingElixir += production
+      if (b.buildingType === BuildingType.DiamondMine) {
+        pendingDiamond += production
+      } else if (b.buildingType === BuildingType.GasCollector) {
+        pendingGas += production
       }
     }
 
-    return { gold: pendingGold, elixir: pendingElixir }
+    return { diamond: pendingDiamond, gas: pendingGas }
   }, [buildings])
 
-  const [pending, setPending] = useState<CollectionResult>({ gold: 0, elixir: 0 })
+  const [pending, setPending] = useState<CollectionResult>({ diamond: 0, gas: 0 })
 
   // Update pending estimate every second
   useEffect(() => {
@@ -59,9 +59,9 @@ export function useResources() {
   }, [estimatePending])
 
   const hasProducers = buildings.some(
-    b => b.buildingType === BuildingType.GoldMine || b.buildingType === BuildingType.ElixirCollector
+    b => b.buildingType === BuildingType.DiamondMine || b.buildingType === BuildingType.GasCollector
   )
-  const canCollect = hasProducers && (pending.gold > 0 || pending.elixir > 0)
+  const canCollect = hasProducers && (pending.diamond > 0 || pending.gas > 0)
 
   const collectResources = useCallback(async () => {
     if (!account || collecting) return
@@ -81,7 +81,7 @@ export function useResources() {
       // Mark local collect time so estimates reset immediately
       localCollectTime.current = Math.floor(Date.now() / 1000)
       // Force pending to zero right away
-      setPending({ gold: 0, elixir: 0 })
+      setPending({ diamond: 0, gas: 0 })
       // Show toast with what was collected
       setLastCollection(est)
       setTimeout(() => setLastCollection(null), 3000)
@@ -92,13 +92,13 @@ export function useResources() {
     }
   }, [account, collecting, estimatePending])
 
-  const canAfford = useCallback((goldCost: number, elixirCost: number): boolean => {
-    return gold >= BigInt(goldCost) && elixir >= BigInt(elixirCost)
-  }, [gold, elixir])
+  const canAfford = useCallback((diamondCost: number, gasCost: number): boolean => {
+    return diamond >= BigInt(diamondCost) && gas >= BigInt(gasCost)
+  }, [diamond, gas])
 
   return {
-    gold,
-    elixir,
+    diamond,
+    gas,
     collectResources,
     canAfford,
     canCollect,

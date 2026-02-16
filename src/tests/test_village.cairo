@@ -11,7 +11,7 @@ use clash_prototype::models::building::{Building, BuildingType, m_Building};
 use clash_prototype::models::army::{Army, m_Army};
 use clash_prototype::systems::village::{village, IVillageDispatcher, IVillageDispatcherTrait, e_PlayerSpawned};
 use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded};
-use clash_prototype::utils::config::{STARTING_GOLD, STARTING_ELIXIR};
+use clash_prototype::utils::config::{STARTING_DIAMOND, STARTING_GAS};
 
 fn namespace_def() -> NamespaceDef {
     let ndef = NamespaceDef {
@@ -61,8 +61,8 @@ fn test_spawn_player() {
     // Verify player was created
     let player: Player = world.read_model(caller);
     assert(player.username == 'TestPlayer', 'Wrong username');
-    assert(player.gold == STARTING_GOLD, 'Wrong gold');
-    assert(player.elixir == STARTING_ELIXIR, 'Wrong elixir');
+    assert(player.diamond == STARTING_DIAMOND, 'Wrong diamond');
+    assert(player.gas == STARTING_GAS, 'Wrong gas');
     assert(player.town_hall_level == 1, 'Wrong TH level');
     assert(player.building_count == 1, 'Wrong building count');
 
@@ -100,17 +100,17 @@ fn test_place_building() {
     // Spawn player first
     village_dispatcher.spawn('TestPlayer');
 
-    // Place a gold mine
-    building_dispatcher.place_building(BuildingType::GoldMine, 5, 5);
+    // Place a diamond mine
+    building_dispatcher.place_building(BuildingType::DiamondMine, 5, 5);
 
     // Verify building was placed
     let player: Player = world.read_model(caller);
     assert(player.building_count == 2, 'Wrong building count');
 
-    let gold_mine: Building = world.read_model((caller, 2_u32));
-    assert(gold_mine.building_type == BuildingType::GoldMine, 'Wrong building type');
-    assert(gold_mine.x == 5, 'Wrong x');
-    assert(gold_mine.y == 5, 'Wrong y');
+    let diamond_mine: Building = world.read_model((caller, 2_u32));
+    assert(diamond_mine.building_type == BuildingType::DiamondMine, 'Wrong building type');
+    assert(diamond_mine.x == 5, 'Wrong x');
+    assert(diamond_mine.y == 5, 'Wrong y');
 }
 
 #[test]
@@ -153,5 +153,5 @@ fn test_building_collision() {
     village_dispatcher.spawn('TestPlayer');
 
     // Place at position that overlaps with town hall (18,18 with size 4x4)
-    building_dispatcher.place_building(BuildingType::GoldMine, 19, 19); // Should collide
+    building_dispatcher.place_building(BuildingType::DiamondMine, 19, 19); // Should collide
 }

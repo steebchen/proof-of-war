@@ -21,8 +21,8 @@ pub struct Battle {
     pub started_at: u64,
     pub ends_at: u64,
     pub destruction_percent: u8,
-    pub gold_stolen: u64,
-    pub elixir_stolen: u64,
+    pub diamond_stolen: u64,
+    pub gas_stolen: u64,
     pub attacker_trophies_change: i32,
     pub defender_trophies_change: i32,
     pub deployed_troop_count: u32,
@@ -58,8 +58,8 @@ pub struct BattleBuilding {
     pub max_health: u32,
     pub current_health: u32,
     pub is_destroyed: bool,
-    pub gold_loot: u64,
-    pub elixir_loot: u64,
+    pub diamond_loot: u64,
+    pub gas_loot: u64,
 }
 
 // Global counter for battle IDs

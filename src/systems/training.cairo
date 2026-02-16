@@ -70,11 +70,11 @@ pub mod training_system {
             assert(army.total_space_used + space_needed <= army.max_capacity, 'Not enough army space');
 
             // Calculate total cost
-            let total_cost = config.training_cost_elixir * quantity.into();
-            assert(player.elixir >= total_cost, 'Not enough elixir');
+            let total_cost = config.training_cost_gas * quantity.into();
+            assert(player.gas >= total_cost, 'Not enough gas');
 
-            // Deduct elixir
-            player.elixir -= total_cost;
+            // Deduct gas
+            player.gas -= total_cost;
             world.write_model(@player);
 
             // Calculate training time
