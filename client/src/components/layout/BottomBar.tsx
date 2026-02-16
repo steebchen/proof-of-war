@@ -1,6 +1,8 @@
 import { BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
 import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
+import { useDojo } from '../../providers/DojoProvider'
+import { getBuildingLimits } from '../../utils/buildingLimits'
 
 interface BottomBarProps {
   onOpenArmy: () => void
@@ -10,6 +12,10 @@ interface BottomBarProps {
 export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
   const { isPlacing, selectedBuildingType, startPlacing, cancelPlacing } = useBuildings()
   const { canAfford } = useResources()
+  const { player, buildings } = useDojo()
+
+  const townHallLevel = player?.townHallLevel ?? 1
+  const limits = getBuildingLimits(buildings, townHallLevel)
 
   // Buildings available for placement (exclude TownHall)
   const availableBuildings = Object.entries(BUILDING_INFO)
@@ -26,23 +32,37 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
         <div style={styles.buildingGrid}>
           {availableBuildings.map((building) => {
             const affordable = canAfford(building.cost.gold, building.cost.elixir)
+            const limitInfo = limits[building.type]
+            const atLimit = !limitInfo.canBuild
             const isSelected = isPlacing && selectedBuildingType === building.type
+            const isDisabled = !affordable || atLimit
 
             return (
-              <button
-                key={building.type}
-                style={{
-                  ...styles.buildingBtn,
-                  backgroundColor: building.color,
-                  opacity: affordable ? 1 : 0.5,
-                  border: isSelected ? '3px solid #fff' : '3px solid transparent',
-                }}
-                onClick={() => isSelected ? cancelPlacing() : startPlacing(building.type)}
-                disabled={!affordable}
-                title={`${building.name}\nGold: ${building.cost.gold}\nElixir: ${building.cost.elixir}`}
-              >
-                <span style={styles.buildingName}>{building.name.slice(0, 2)}</span>
-              </button>
+              <div key={building.type} style={styles.buildingWrapper}>
+                <button
+                  style={{
+                    ...styles.buildingBtn,
+                    backgroundColor: building.color,
+                    opacity: isDisabled ? 0.5 : 1,
+                    border: isSelected ? '3px solid #fff' : '3px solid transparent',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                  onClick={() => !isDisabled && (isSelected ? cancelPlacing() : startPlacing(building.type))}
+                  disabled={isDisabled}
+                  title={`${building.name}\nGold: ${building.cost.gold}\nElixir: ${building.cost.elixir}\nLimit: ${limitInfo.current}/${limitInfo.max}`}
+                >
+                  <span style={styles.buildingName}>{building.name.slice(0, 2)}</span>
+                </button>
+                <div
+                  style={{
+                    ...styles.limitBadge,
+                    backgroundColor: atLimit ? '#e74c3c' : 'rgba(0, 0, 0, 0.6)',
+                    color: atLimit ? '#fff' : '#aaa',
+                  }}
+                >
+                  {limitInfo.current}/{limitInfo.max}
+                </div>
+              </div>
             )
           })}
         </div>
@@ -98,6 +118,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px',
     flexWrap: 'wrap',
   },
+  buildingWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '2px',
+  },
   buildingBtn: {
     width: '48px',
     height: '48px',
@@ -113,6 +139,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     fontSize: '12px',
     textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+  },
+  limitBadge: {
+    fontSize: '10px',
+    padding: '1px 4px',
+    borderRadius: '4px',
+    fontWeight: 'bold',
   },
   actionButtons: {
     display: 'flex',

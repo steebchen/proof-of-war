@@ -1,5 +1,9 @@
-import { createContext, useContext, ReactNode, useState, useEffect } from 'react'
-import { dojoConfig } from '../config/dojoConfig'
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback, useRef } from 'react'
+import { init, ToriiQueryBuilder, KeysClause, MemberClause } from '@dojoengine/sdk'
+import type { SDK, StandardizedQueryResult } from '@dojoengine/sdk'
+import { addAddressPadding } from 'starknet'
+import { dojoConfig, BuildingType } from '../config/dojoConfig'
+import { ClashSchemaType, MODELS } from '../types/schema'
 
 // Types for our game state
 export interface Player {
@@ -32,54 +36,366 @@ export interface Army {
   maxCapacity: number
 }
 
+// Subscription type from torii
+interface Subscription {
+  free(): void
+}
+
 interface DojoContextType {
   isConnected: boolean
+  isLoading: boolean
+  error: string | null
   player: Player | null
   buildings: Building[]
   army: Army | null
   setPlayer: (player: Player | null) => void
   setBuildings: (buildings: Building[]) => void
   setArmy: (army: Army | null) => void
+  fetchPlayerData: (address: string) => Promise<boolean>
   refreshData: () => void
+  // Building placement state (shared across components)
+  isPlacing: boolean
+  selectedBuildingType: number | null
+  setIsPlacing: (isPlacing: boolean) => void
+  setSelectedBuildingType: (type: number | null) => void
 }
 
 const DojoContext = createContext<DojoContextType | null>(null)
 
+// Helper to convert felt252 hex to string
+function hexToString(hex: string): string {
+  if (!hex || hex === '0x0') return ''
+  // Remove 0x prefix
+  const hexStr = hex.startsWith('0x') ? hex.slice(2) : hex
+  // Convert hex pairs to characters
+  let result = ''
+  for (let i = 0; i < hexStr.length; i += 2) {
+    const charCode = parseInt(hexStr.slice(i, i + 2), 16)
+    if (charCode > 0) {
+      result += String.fromCharCode(charCode)
+    }
+  }
+  return result
+}
+
+// Helper to parse building type from Torii response
+function parseBuildingType(typeData: unknown): number {
+  if (typeof typeData === 'number') return typeData
+  if (typeof typeData === 'string') {
+    // Could be a numeric string or enum name
+    const num = parseInt(typeData, 10)
+    if (!isNaN(num)) return num
+    // Map enum names to values
+    const enumMap: Record<string, number> = {
+      'TownHall': BuildingType.TownHall,
+      'GoldMine': BuildingType.GoldMine,
+      'ElixirCollector': BuildingType.ElixirCollector,
+      'GoldStorage': BuildingType.GoldStorage,
+      'ElixirStorage': BuildingType.ElixirStorage,
+      'Barracks': BuildingType.Barracks,
+      'ArmyCamp': BuildingType.ArmyCamp,
+      'Cannon': BuildingType.Cannon,
+      'ArcherTower': BuildingType.ArcherTower,
+      'Wall': BuildingType.Wall,
+    }
+    return enumMap[typeData] ?? 0
+  }
+  if (typeof typeData === 'object' && typeData !== null) {
+    // Could be { variant: 'GoldMine' } or { type: 'GoldMine' }
+    const obj = typeData as Record<string, unknown>
+    if ('variant' in obj) return parseBuildingType(obj.variant)
+    if ('type' in obj) return parseBuildingType(obj.type)
+    // Could be { GoldMine: {} } format
+    const keys = Object.keys(obj)
+    if (keys.length === 1) return parseBuildingType(keys[0])
+  }
+  return 0
+}
+
+// Transform functions
+function transformPlayer(data: ClashSchemaType['clash']['Player'], address: string): Player {
+  return {
+    address,
+    username: hexToString(data.username),
+    gold: BigInt(data.gold || '0'),
+    elixir: BigInt(data.elixir || '0'),
+    trophies: parseInt(data.trophies || '0', 10),
+    townHallLevel: parseInt(data.town_hall_level || '1', 10),
+    buildingCount: parseInt(data.building_count || '0', 10),
+  }
+}
+
+function transformBuilding(data: ClashSchemaType['clash']['Building']): Building {
+  return {
+    owner: data.owner,
+    buildingId: parseInt(data.building_id || '0', 10),
+    buildingType: parseBuildingType(data.building_type),
+    level: parseInt(data.level || '1', 10),
+    x: parseInt(data.x || '0', 10),
+    y: parseInt(data.y || '0', 10),
+    health: parseInt(data.health || '100', 10),
+    isUpgrading: data.is_upgrading ?? false,
+    upgradeFinishTime: BigInt(data.upgrade_finish_time || '0'),
+  }
+}
+
+function transformArmy(data: ClashSchemaType['clash']['Army']): Army {
+  return {
+    owner: data.owner,
+    barbarians: parseInt(data.barbarians || '0', 10),
+    archers: parseInt(data.archers || '0', 10),
+    totalSpaceUsed: parseInt(data.total_space_used || '0', 10),
+    maxCapacity: parseInt(data.max_capacity || '0', 10),
+  }
+}
+
 export function DojoProvider({ children }: { children: ReactNode }) {
+  const [sdk, setSdk] = useState<SDK<ClashSchemaType> | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [player, setPlayer] = useState<Player | null>(null)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [army, setArmy] = useState<Army | null>(null)
+  const [isPlacing, setIsPlacing] = useState(false)
+  const [selectedBuildingType, setSelectedBuildingType] = useState<number | null>(null)
+  const subscriptionRef = useRef<Subscription | null>(null)
 
+  // Initialize SDK
   useEffect(() => {
-    // Check if torii is available
-    const checkConnection = async () => {
+    const initSdk = async () => {
       try {
-        const response = await fetch(`${dojoConfig.toriiUrl}/health`)
-        setIsConnected(response.ok)
-      } catch {
+        setIsLoading(true)
+        setError(null)
+
+        const database = await init<ClashSchemaType>({
+          client: {
+            toriiUrl: dojoConfig.toriiUrl,
+            worldAddress: dojoConfig.worldAddress,
+          },
+          domain: {
+            name: 'ClashPrototype',
+            version: '1.0',
+            chainId: 'KATANA',
+            revision: '1',
+          },
+        })
+
+        setSdk(database)
+        setIsConnected(true)
+        console.log('Dojo SDK initialized successfully')
+      } catch (err) {
+        console.error('Failed to initialize Dojo SDK:', err)
+        setError('Failed to connect to Torii. Please make sure the server is running.')
         setIsConnected(false)
+      } finally {
+        setIsLoading(false)
       }
     }
-    checkConnection()
+
+    initSdk()
+
+    return () => {
+      // Cleanup subscription on unmount
+      if (subscriptionRef.current) {
+        subscriptionRef.current.free()
+      }
+    }
   }, [])
 
-  const refreshData = () => {
-    // This would be implemented with actual Torii subscriptions
-    console.log('Refreshing data...')
-  }
+  // Fetch player data from Torii
+  const fetchPlayerData = useCallback(async (address: string): Promise<boolean> => {
+    if (!sdk) {
+      console.error('SDK not initialized')
+      return false
+    }
+
+    try {
+      setIsLoading(true)
+      const paddedAddress = addAddressPadding(address)
+
+      // Fetch Player entity
+      const playerQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          KeysClause(
+            [MODELS.Player],
+            [paddedAddress],
+            'FixedLen'
+          ).build()
+        )
+
+      const playerResponse = await sdk.getEntities({ query: playerQuery })
+      const playerEntities = playerResponse.getItems()
+
+      // Check if player exists
+      let playerFound = false
+      for (const entity of playerEntities) {
+        const playerData = entity.models?.clash?.Player
+        if (playerData) {
+          setPlayer(transformPlayer(playerData as ClashSchemaType['clash']['Player'], address))
+          playerFound = true
+          break
+        }
+      }
+
+      if (!playerFound) {
+        console.log('Player not found in Torii')
+        setPlayer(null)
+        setBuildings([])
+        setArmy(null)
+        return false
+      }
+
+      // Fetch Buildings for this owner
+      const buildingsQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          MemberClause(
+            MODELS.Building,
+            'owner',
+            'Eq',
+            paddedAddress
+          ).build()
+        )
+        .withLimit(100)
+
+      const buildingsResponse = await sdk.getEntities({ query: buildingsQuery })
+      const buildingEntities = buildingsResponse.getItems()
+      const fetchedBuildings: Building[] = []
+      for (const entity of buildingEntities) {
+        const buildingData = entity.models?.clash?.Building
+        if (buildingData) {
+          fetchedBuildings.push(transformBuilding(buildingData as ClashSchemaType['clash']['Building']))
+        }
+      }
+      setBuildings(fetchedBuildings)
+
+      // Fetch Army
+      const armyQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          KeysClause(
+            [MODELS.Army],
+            [paddedAddress],
+            'FixedLen'
+          ).build()
+        )
+
+      const armyResponse = await sdk.getEntities({ query: armyQuery })
+      const armyEntities = armyResponse.getItems()
+      for (const entity of armyEntities) {
+        const armyData = entity.models?.clash?.Army
+        if (armyData) {
+          setArmy(transformArmy(armyData as ClashSchemaType['clash']['Army']))
+          break
+        }
+      }
+
+      // Set up subscriptions for real-time updates
+      setupSubscriptions(address)
+
+      return true
+    } catch (err) {
+      console.error('Failed to fetch player data:', err)
+      setError('Failed to fetch player data from Torii')
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }, [sdk])
+
+  // Set up entity subscriptions for real-time updates
+  const setupSubscriptions = useCallback(async (address: string) => {
+    if (!sdk) return
+
+    // Cancel existing subscription
+    if (subscriptionRef.current) {
+      subscriptionRef.current.free()
+    }
+
+    try {
+      const paddedAddress = addAddressPadding(address)
+
+      // Subscribe to player updates
+      const subscriptionQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          KeysClause(
+            [MODELS.Player, MODELS.Building, MODELS.Army],
+            [paddedAddress],
+            'FixedLen'
+          ).build()
+        )
+
+      const [_initialData, subscription] = await sdk.subscribeEntityQuery({
+        query: subscriptionQuery,
+        callback: ({ data, error: subError }: { data?: StandardizedQueryResult<ClashSchemaType>; error?: Error }) => {
+          if (subError) {
+            console.error('Subscription error:', subError)
+            return
+          }
+
+          if (data) {
+            for (const entity of data) {
+              // Handle Player updates
+              const playerData = entity.models?.clash?.Player
+              if (playerData) {
+                setPlayer(transformPlayer(playerData as ClashSchemaType['clash']['Player'], address))
+              }
+
+              // Handle Building updates
+              const buildingData = entity.models?.clash?.Building
+              if (buildingData) {
+                const newBuilding = transformBuilding(buildingData as ClashSchemaType['clash']['Building'])
+                setBuildings(prev => {
+                  const existing = prev.findIndex(b => b.buildingId === newBuilding.buildingId)
+                  if (existing >= 0) {
+                    const updated = [...prev]
+                    updated[existing] = newBuilding
+                    return updated
+                  }
+                  return [...prev, newBuilding]
+                })
+              }
+
+              // Handle Army updates
+              const armyData = entity.models?.clash?.Army
+              if (armyData) {
+                setArmy(transformArmy(armyData as ClashSchemaType['clash']['Army']))
+              }
+            }
+          }
+        }
+      })
+
+      subscriptionRef.current = subscription
+      console.log('Entity subscriptions set up successfully')
+    } catch (err) {
+      console.error('Failed to set up subscriptions:', err)
+    }
+  }, [sdk])
+
+  const refreshData = useCallback(() => {
+    if (player?.address) {
+      fetchPlayerData(player.address)
+    }
+  }, [player?.address, fetchPlayerData])
 
   return (
     <DojoContext.Provider
       value={{
         isConnected,
+        isLoading,
+        error,
         player,
         buildings,
         army,
         setPlayer,
         setBuildings,
         setArmy,
+        fetchPlayerData,
         refreshData,
+        isPlacing,
+        selectedBuildingType,
+        setIsPlacing,
+        setSelectedBuildingType,
       }}
     >
       {children}

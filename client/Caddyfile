@@ -1,0 +1,4 @@
+clash.localtest.me {
+    tls internal
+    reverse_proxy http://localhost:5173
+}

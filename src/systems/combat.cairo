@@ -9,7 +9,7 @@ pub trait ICombat<T> {
     fn end_battle(ref self: T, battle_id: u32);
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct BattleStarted {
     #[key]
@@ -18,7 +18,7 @@ pub struct BattleStarted {
     pub defender: ContractAddress,
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct TroopDeployed {
     #[key]
@@ -29,7 +29,7 @@ pub struct TroopDeployed {
     pub y: u16,
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct BattleEnded {
     #[key]

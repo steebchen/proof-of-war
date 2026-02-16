@@ -7,7 +7,7 @@ pub trait ITraining<T> {
     fn collect_trained_troops(ref self: T, barracks_id: u32);
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct TroopsTrainingStarted {
     #[key]
@@ -17,7 +17,7 @@ pub struct TroopsTrainingStarted {
     pub quantity: u8,
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct TroopsCollected {
     #[key]

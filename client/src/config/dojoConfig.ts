@@ -2,6 +2,8 @@ export const dojoConfig = {
   toriiUrl: import.meta.env.VITE_TORII_URL || 'http://localhost:8080',
   katanaUrl: import.meta.env.VITE_KATANA_URL || 'http://localhost:5050',
   worldAddress: import.meta.env.VITE_WORLD_ADDRESS || '0x0',
+  buildingSystemAddress: import.meta.env.VITE_BUILDING_SYSTEM_ADDRESS || '0x0',
+  villageSystemAddress: import.meta.env.VITE_VILLAGE_SYSTEM_ADDRESS || '0x0',
   namespace: 'clash',
 }
 

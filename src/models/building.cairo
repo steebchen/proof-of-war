@@ -1,7 +1,8 @@
 use starknet::ContractAddress;
 
-#[derive(Copy, Drop, Serde, PartialEq, Introspect)]
+#[derive(Serde, Copy, Drop, Introspect, PartialEq, Debug, DojoStore, Default)]
 pub enum BuildingType {
+    #[default]
     TownHall,
     GoldMine,
     ElixirCollector,

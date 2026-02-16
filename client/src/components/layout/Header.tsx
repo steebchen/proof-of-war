@@ -17,6 +17,9 @@ export function Header() {
     return num.toString()
   }
 
+  // Get the Cartridge Controller connector
+  const controllerConnector = connectors[0]
+
   return (
     <header style={styles.header}>
       <div style={styles.left}>
@@ -60,17 +63,12 @@ export function Header() {
             </button>
           </div>
         ) : (
-          <div style={styles.connectButtons}>
-            {connectors.map((connector) => (
-              <button
-                key={connector.id}
-                style={styles.connectBtn}
-                onClick={() => connect({ connector })}
-              >
-                Connect {connector.name}
-              </button>
-            ))}
-          </div>
+          <button
+            style={styles.connectBtn}
+            onClick={() => connect({ connector: controllerConnector })}
+          >
+            Connect with Controller
+          </button>
         )}
       </div>
     </header>
@@ -173,17 +171,14 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '12px',
   },
-  connectButtons: {
-    display: 'flex',
-    gap: '8px',
-  },
   connectBtn: {
-    padding: '8px 16px',
-    backgroundColor: '#3498db',
+    padding: '12px 24px',
+    backgroundColor: '#F5851F',
     color: '#fff',
     border: 'none',
-    borderRadius: '6px',
+    borderRadius: '8px',
     cursor: 'pointer',
     fontWeight: 'bold',
+    fontSize: '16px',
   },
 }

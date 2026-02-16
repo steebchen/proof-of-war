@@ -1,23 +1,39 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useDojo, Building } from '../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
 import { BUILDING_SIZES } from '../utils/constants'
+import { dojoConfig } from '../config/dojoConfig'
+import { canBuildMore } from '../utils/buildingLimits'
 
 export function useBuildings() {
-  const { buildings, setBuildings } = useDojo()
+  const {
+    buildings,
+    setBuildings,
+    isPlacing,
+    setIsPlacing,
+    selectedBuildingType,
+    setSelectedBuildingType,
+    player
+  } = useDojo()
   const { account } = useAccount()
-  const [isPlacing, setIsPlacing] = useState(false)
-  const [selectedBuildingType, setSelectedBuildingType] = useState<number | null>(null)
+
+  const townHallLevel = player?.townHallLevel ?? 1
 
   const startPlacing = useCallback((buildingType: number) => {
+    // Check building limit before allowing placement mode
+    if (!canBuildMore(buildings, buildingType, townHallLevel)) {
+      console.warn(`Cannot build more of this type. Limit reached.`)
+      return
+    }
+
     setSelectedBuildingType(buildingType)
     setIsPlacing(true)
-  }, [])
+  }, [buildings, townHallLevel, setSelectedBuildingType, setIsPlacing])
 
   const cancelPlacing = useCallback(() => {
     setSelectedBuildingType(null)
     setIsPlacing(false)
-  }, [])
+  }, [setSelectedBuildingType, setIsPlacing])
 
   const checkCollision = useCallback((x: number, y: number, width: number, height: number, excludeId?: number): boolean => {
     for (const building of buildings) {
@@ -34,6 +50,13 @@ export function useBuildings() {
 
   const placeBuilding = useCallback(async (x: number, y: number) => {
     if (!account || selectedBuildingType === null) return false
+
+    // Verify building limit again before placing
+    if (!canBuildMore(buildings, selectedBuildingType, townHallLevel)) {
+      console.error('Building limit reached')
+      cancelPlacing()
+      return false
+    }
 
     const size = BUILDING_SIZES[selectedBuildingType] || { width: 1, height: 1 }
 
@@ -65,11 +88,31 @@ export function useBuildings() {
     setBuildings([...buildings, newBuilding])
     cancelPlacing()
 
-    // TODO: Call contract
-    console.log('Place building:', { type: selectedBuildingType, x, y })
+    // Call contract (use building system address, not world address)
+    try {
+      console.log('Calling place_building contract:', {
+        contract: dojoConfig.buildingSystemAddress,
+        type: selectedBuildingType,
+        x,
+        y
+      })
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'place_building',
+          calldata: [selectedBuildingType, x, y],
+        },
+      ])
+      console.log('Building placed on-chain successfully')
+    } catch (error) {
+      console.error('Failed to place building on-chain:', error)
+      // Revert optimistic update on failure
+      setBuildings(buildings)
+      return false
+    }
 
     return true
-  }, [account, selectedBuildingType, buildings, checkCollision, setBuildings, cancelPlacing])
+  }, [account, selectedBuildingType, buildings, townHallLevel, checkCollision, setBuildings, cancelPlacing])
 
   const getBuildingAt = useCallback((x: number, y: number): Building | undefined => {
     for (const building of buildings) {

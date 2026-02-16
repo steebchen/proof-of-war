@@ -9,6 +9,9 @@ export default defineConfig({
     wasm(),
     topLevelAwait(),
   ],
+  server: {
+    allowedHosts: ['clash.localtest.me'],
+  },
   build: {
     target: 'esnext',
   },

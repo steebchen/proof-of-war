@@ -9,7 +9,7 @@ pub trait IBuilding<T> {
     fn move_building(ref self: T, building_id: u32, new_x: u8, new_y: u8);
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct BuildingPlaced {
     #[key]
@@ -20,7 +20,7 @@ pub struct BuildingPlaced {
     pub y: u8,
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct BuildingUpgraded {
     #[key]

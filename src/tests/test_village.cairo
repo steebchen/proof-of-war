@@ -1,6 +1,6 @@
-use starknet::contract_address_const;
+use starknet::ContractAddress;
 use dojo::model::ModelStorage;
-use dojo::world::WorldStorageTrait;
+use dojo::world::{WorldStorageTrait, world};
 use dojo_cairo_test::{
     spawn_test_world, NamespaceDef, TestResource, ContractDefTrait, ContractDef,
     WorldStorageTestTrait
@@ -16,7 +16,7 @@ use clash_prototype::utils::config::{STARTING_GOLD, STARTING_ELIXIR};
 fn namespace_def() -> NamespaceDef {
     let ndef = NamespaceDef {
         namespace: "clash",
-        resources: array![
+        resources: [
             TestResource::Model(m_Player::TEST_CLASS_HASH),
             TestResource::Model(m_Building::TEST_CLASS_HASH),
             TestResource::Model(m_Army::TEST_CLASS_HASH),
@@ -42,10 +42,10 @@ fn contract_defs() -> Span<ContractDef> {
 
 #[test]
 fn test_spawn_player() {
-    let caller = contract_address_const::<'player1'>();
+    let caller: ContractAddress = 'player1'.try_into().unwrap();
     let ndef = namespace_def();
 
-    let mut world = spawn_test_world([ndef].span());
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
     world.sync_perms_and_inits(contract_defs());
 
     let (village_address, _) = world.dns(@"village").unwrap();
@@ -82,10 +82,10 @@ fn test_spawn_player() {
 
 #[test]
 fn test_place_building() {
-    let caller = contract_address_const::<'player1'>();
+    let caller: ContractAddress = 'player1'.try_into().unwrap();
     let ndef = namespace_def();
 
-    let mut world = spawn_test_world([ndef].span());
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
     world.sync_perms_and_inits(contract_defs());
 
     let (village_address, _) = world.dns(@"village").unwrap();
@@ -116,10 +116,10 @@ fn test_place_building() {
 #[test]
 #[should_panic(expected: ('Player already exists', 'ENTRYPOINT_FAILED'))]
 fn test_cannot_spawn_twice() {
-    let caller = contract_address_const::<'player1'>();
+    let caller: ContractAddress = 'player1'.try_into().unwrap();
     let ndef = namespace_def();
 
-    let mut world = spawn_test_world([ndef].span());
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
     world.sync_perms_and_inits(contract_defs());
 
     let (village_address, _) = world.dns(@"village").unwrap();
@@ -135,10 +135,10 @@ fn test_cannot_spawn_twice() {
 #[test]
 #[should_panic(expected: ('Building collision', 'ENTRYPOINT_FAILED'))]
 fn test_building_collision() {
-    let caller = contract_address_const::<'player1'>();
+    let caller: ContractAddress = 'player1'.try_into().unwrap();
     let ndef = namespace_def();
 
-    let mut world = spawn_test_world([ndef].span());
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
     world.sync_perms_and_inits(contract_defs());
 
     let (village_address, _) = world.dns(@"village").unwrap();

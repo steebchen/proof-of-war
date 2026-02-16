@@ -2,8 +2,9 @@ use starknet::ContractAddress;
 use super::troop::TroopType;
 use super::building::BuildingType;
 
-#[derive(Copy, Drop, Serde, PartialEq, Introspect)]
+#[derive(Serde, Copy, Drop, Introspect, PartialEq, Debug, DojoStore, Default)]
 pub enum BattleStatus {
+    #[default]
     Preparing,   // Attacker deploying troops
     InProgress,  // Combat happening
     Ended,       // Battle finished

@@ -5,7 +5,7 @@ pub trait IVillage<T> {
     fn spawn(ref self: T, username: felt252);
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct PlayerSpawned {
     #[key]

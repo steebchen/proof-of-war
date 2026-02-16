@@ -6,7 +6,7 @@ pub trait IResource<T> {
     fn collect_from_building(ref self: T, building_id: u32);
 }
 
-#[derive(Introspect, Drop, Serde)]
+#[derive(Copy, Drop, Serde)]
 #[dojo::event]
 pub struct ResourcesCollected {
     #[key]
