@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
+import { useDojo } from '../../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
 import {
@@ -72,6 +73,24 @@ function formatCountdown(seconds: number): string {
   return `${s}s`
 }
 
+// Upgrade base times in seconds (must match Cairo config)
+const UPGRADE_BASE_TIMES: Record<number, number> = {
+  [BuildingType.TownHall]: 3600,
+  [BuildingType.DiamondMine]: 300,
+  [BuildingType.GasCollector]: 300,
+  [BuildingType.DiamondStorage]: 600,
+  [BuildingType.GasStorage]: 600,
+  [BuildingType.Barracks]: 900,
+  [BuildingType.ArmyCamp]: 600,
+  [BuildingType.Cannon]: 900,
+  [BuildingType.ArcherTower]: 900,
+  [BuildingType.Wall]: 60,
+}
+
+function getUpgradeTime(buildingType: number, nextLevel: number): number {
+  return (UPGRADE_BASE_TIMES[buildingType] ?? 300) * nextLevel
+}
+
 // Buffer (seconds) to account for client clock being ahead of on-chain block timestamp
 const UPGRADE_BUFFER = 5
 
@@ -129,6 +148,7 @@ export function VillageGrid() {
     getBuildingAt,
   } = useBuildings()
   const { canAfford } = useResources()
+  const { setBuildings } = useDojo()
   const { account } = useAccount()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
@@ -152,6 +172,7 @@ export function VillageGrid() {
   // Gesture tracking for wheel events (mouse wheel vs trackpad detection)
   const lastWheelTimeRef = useRef(0)
   const gestureModeRef = useRef<'zoom' | 'pan' | null>(null)
+  const lastTrackpadTimeRef = useRef(0) // remembers when trackpad was last detected
 
   // Load building sprites
   useEffect(() => {
@@ -547,10 +568,25 @@ export function VillageGrid() {
     },
   }
 
-  // Upgrade building on-chain
+  // Upgrade building on-chain with optimistic update
   const handleUpgrade = useCallback(async (buildingId: number) => {
     if (!account || pending) return
     setPending(true)
+
+    // Optimistically mark the building as upgrading
+    const prevBuildings = buildings
+    const building = buildings.find(b => b.buildingId === buildingId)
+    if (building) {
+      const nextLevel = building.level + 1
+      const upgradeTime = getUpgradeTime(building.buildingType, nextLevel)
+      const finishTime = BigInt(Math.floor(Date.now() / 1000) + upgradeTime)
+      setBuildings(buildings.map(b =>
+        b.buildingId === buildingId
+          ? { ...b, isUpgrading: true, upgradeFinishTime: finishTime }
+          : b
+      ))
+    }
+
     try {
       await account.execute([
         {
@@ -562,15 +598,29 @@ export function VillageGrid() {
       console.log('Upgrade started on-chain')
     } catch (error) {
       console.error('Failed to upgrade:', error)
+      // Revert optimistic update on failure
+      setBuildings(prevBuildings)
     } finally {
       setPending(false)
     }
-  }, [account, pending])
+  }, [account, pending, buildings, setBuildings])
 
-  // Finish upgrade on-chain
+  // Finish upgrade on-chain with optimistic update
   const handleFinishUpgrade = useCallback(async (buildingId: number) => {
     if (!account || pending) return
     setPending(true)
+
+    // Optimistically complete the upgrade
+    const prevBuildings = buildings
+    const building = buildings.find(b => b.buildingId === buildingId)
+    if (building) {
+      setBuildings(buildings.map(b =>
+        b.buildingId === buildingId
+          ? { ...b, isUpgrading: false, upgradeFinishTime: BigInt(0), level: b.level + 1 }
+          : b
+      ))
+    }
+
     try {
       await account.execute([
         {
@@ -582,10 +632,12 @@ export function VillageGrid() {
       console.log('Upgrade finished on-chain')
     } catch (error) {
       console.error('Failed to finish upgrade:', error)
+      // Revert optimistic update on failure
+      setBuildings(prevBuildings)
     } finally {
       setPending(false)
     }
-  }, [account, pending])
+  }, [account, pending, buildings, setBuildings])
 
   // Redraw when dependencies change
   useEffect(() => {
@@ -636,9 +688,14 @@ export function VillageGrid() {
       } else if (e.deltaX !== 0) {
         // Has horizontal component → trackpad; lock gesture to pan
         gestureModeRef.current = 'pan'
+        lastTrackpadTimeRef.current = now
         action = 'pan'
       } else if (gestureModeRef.current === 'pan') {
         // Already identified as trackpad gesture from earlier deltaX
+        action = 'pan'
+      } else if (now - lastTrackpadTimeRef.current < 5000) {
+        // Recently used trackpad — assume still on trackpad (catches pure-vertical scrolls)
+        gestureModeRef.current = 'pan'
         action = 'pan'
       } else {
         // Default: zoom (mouse wheel or purely vertical input)
