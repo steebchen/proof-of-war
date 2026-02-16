@@ -1,5 +1,5 @@
 import { useDojo } from '../providers/DojoProvider'
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType } from '../config/dojoConfig'
 
@@ -16,6 +16,8 @@ export function useResources() {
   const { account } = useAccount()
   const [lastCollection, setLastCollection] = useState<CollectionResult | null>(null)
   const [collecting, setCollecting] = useState(false)
+  // Track when we last collected locally so estimates reset immediately
+  const localCollectTime = useRef<number>(0)
 
   const gold = player?.gold ?? BigInt(0)
   const elixir = player?.elixir ?? BigInt(0)
@@ -28,7 +30,9 @@ export function useResources() {
 
     for (const b of buildings) {
       if (b.level === 0 || b.lastCollectedAt === BigInt(0)) continue
-      const elapsed = now - Number(b.lastCollectedAt)
+      // Use the later of: on-chain lastCollectedAt or our local collect time
+      const collectedAt = Math.max(Number(b.lastCollectedAt), localCollectTime.current)
+      const elapsed = now - collectedAt
       const minutes = Math.floor(elapsed / 60)
       if (minutes <= 0) continue
 
@@ -43,7 +47,6 @@ export function useResources() {
     return { gold: pendingGold, elixir: pendingElixir }
   }, [buildings])
 
-  // Whether there's anything to collect
   const [pending, setPending] = useState<CollectionResult>({ gold: 0, elixir: 0 })
 
   // Update pending estimate every second
@@ -67,6 +70,7 @@ export function useResources() {
     setLastCollection(null)
 
     try {
+      const est = estimatePending()
       await account.execute([
         {
           contractAddress: dojoConfig.resourceSystemAddress,
@@ -74,17 +78,19 @@ export function useResources() {
           calldata: [],
         },
       ])
-      // Show the estimated amount (real amount comes via subscription update)
-      const est = estimatePending()
+      // Mark local collect time so estimates reset immediately
+      localCollectTime.current = Math.floor(Date.now() / 1000)
+      // Force pending to zero right away
+      setPending({ gold: 0, elixir: 0 })
+      // Show toast with what was collected
       setLastCollection(est)
-      // Auto-hide after 3 seconds
       setTimeout(() => setLastCollection(null), 3000)
     } catch (error) {
       console.error('Failed to collect resources:', error)
     } finally {
       setCollecting(false)
     }
-  }, [account, collecting, gold, elixir, estimatePending])
+  }, [account, collecting, estimatePending])
 
   const canAfford = useCallback((goldCost: number, elixirCost: number): boolean => {
     return gold >= BigInt(goldCost) && elixir >= BigInt(elixirCost)

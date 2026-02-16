@@ -50,9 +50,11 @@ export function Header() {
                 onClick={collectResources}
                 disabled={!canCollect || collecting}
               >
-                {collecting ? 'Collecting...' : canCollect
-                  ? `Collect${pending.gold > 0 ? ` +${pending.gold}g` : ''}${pending.elixir > 0 ? ` +${pending.elixir}e` : ''}`
-                  : 'Nothing to collect'}
+                {collecting ? 'Collecting...'
+                  : lastCollection ? 'Collected!'
+                  : canCollect
+                    ? `Collect${pending.gold > 0 ? ` +${pending.gold}g` : ''}${pending.elixir > 0 ? ` +${pending.elixir}e` : ''}`
+                    : 'Nothing to collect'}
               </button>
               {lastCollection && (
                 <div style={styles.collectionToast}>
