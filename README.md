@@ -12,7 +12,6 @@ A Clash of Clans-style prototype game built on Starknet using the Dojo framework
 ## Project Structure
 
 ```
-clash_prototype/
 ├── src/
 │   ├── models/           # Dojo models (Player, Building, Army, Battle)
 │   ├── systems/          # Game logic (village, building, resource, training, combat)
@@ -41,7 +40,6 @@ clash_prototype/
 
 ```bash
 # Build the contracts
-cd clash_prototype
 sozo build
 
 # Run tests
@@ -61,8 +59,6 @@ torii --world <WORLD_ADDRESS>
 
 ```bash
 cd client
-
-# Install dependencies
 pnpm install
 
 # Update .env with your world address

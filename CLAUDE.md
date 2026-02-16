@@ -1,8 +1,12 @@
 # Clash Prototype - Development Guide
 
+## Workflow
+
+- Always commit changes after making them.
+
 ## Project Structure
 
-The project lives in `clash_prototype/`. It's a Dojo game (Starknet) with:
+It's a Dojo game (Starknet) with:
 - `src/` - Cairo contracts (models, systems, utils)
 - `client/` - React + Vite frontend
 - `dojo_dev.toml` - Dojo dev profile config
@@ -13,7 +17,6 @@ The app is accessed at **https://clash.localtest.me/** (not localhost).
 
 ### 1. Start Katana (Starknet sequencer)
 ```sh
-cd clash_prototype
 katana --http.port 5051 --dev --dev.no-fee --http.cors_origins "https://clash.localtest.me"
 ```
 - `--http.port 5051` (NOT `--port`)
@@ -22,14 +25,12 @@ katana --http.port 5051 --dev --dev.no-fee --http.cors_origins "https://clash.lo
 
 ### 2. Deploy contracts
 ```sh
-cd clash_prototype
 sozo migrate --profile dev
 ```
 Must run after every Katana restart (fresh state).
 
 ### 2b. Grant writer permissions
 ```sh
-cd clash_prototype
 sozo auth grant writer --profile dev \
   clash,clash-village \
   clash,clash-building_system \
@@ -53,7 +54,7 @@ torii --world 0x00927fd3011efc85d029b88547d5c7334f954c44e6657073b8bf382342e66169
 
 ### 4. Start client dev server
 ```sh
-cd clash_prototype/client
+cd client
 npm run dev
 ```
 Runs on localhost:5173, accessible via https://clash.localtest.me/
