@@ -8,6 +8,7 @@ import {
   ISO_CANVAS_W,
   ISO_CANVAS_H,
   BUILDING_SIZES,
+  BUILDING_HEIGHTS,
 } from '../../utils/constants'
 import {
   gridToScreen,
@@ -390,19 +391,37 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
       drawIsoBuilding(ctx, building, spritesRef.current, false, opacity)
 
-      // Health bar for damaged buildings
-      if (snapshotBuilding && !isDestroyed && snapshotBuilding.currentHealth < building.health) {
-        const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
-        const topG = gridToScreen(building.x, building.y)
-        const rightG = gridToScreen(building.x + size.width, building.y)
-        const leftG = gridToScreen(building.x, building.y + size.height)
-        const cx = (leftG.x + rightG.x) / 2
-        const barWidth = 30
-        const healthPct = snapshotBuilding.currentHealth / building.health
+      // Health bar for buildings
+      const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
+      const bh = BUILDING_HEIGHTS[building.buildingType] ?? 14
+      const topG = gridToScreen(building.x, building.y)
+      const rightG = gridToScreen(building.x + size.width, building.y)
+      const leftG = gridToScreen(building.x, building.y + size.height)
+      const cx = (leftG.x + rightG.x) / 2
+      const barY = topG.y - bh - 8
+      const barWidth = 30
+      const barHeight = 4
+      const maxHp = building.health
+      const curHp = snapshotBuilding ? snapshotBuilding.currentHealth : maxHp
+      const healthPct = maxHp > 0 ? curHp / maxHp : 1
+
+      if (!isDestroyed) {
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+        ctx.fillRect(cx - barWidth / 2 - 1, barY - 1, barWidth + 2, barHeight + 2)
+        // Empty bar
         ctx.fillStyle = '#333'
-        ctx.fillRect(cx - barWidth / 2, topG.y - 20, barWidth, 4)
+        ctx.fillRect(cx - barWidth / 2, barY, barWidth, barHeight)
+        // Health fill
         ctx.fillStyle = healthPct > 0.5 ? '#2ecc71' : healthPct > 0.25 ? '#f39c12' : '#e74c3c'
-        ctx.fillRect(cx - barWidth / 2, topG.y - 20, barWidth * healthPct, 4)
+        ctx.fillRect(cx - barWidth / 2, barY, barWidth * healthPct, barHeight)
+      } else {
+        // Destroyed label
+        ctx.fillStyle = '#e74c3c'
+        ctx.font = 'bold 8px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.fillText('DESTROYED', cx, barY + barHeight)
       }
     }
 
@@ -424,6 +443,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       const troopType = deployedInfo?.type ?? TroopType.Barbarian
       const info = TROOP_INFO[troopType]
 
+      // Troop circle
       ctx.fillStyle = info.color
       ctx.beginPath()
       ctx.arc(screen.x, screen.y - 4, 5, 0, Math.PI * 2)
@@ -431,6 +451,20 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       ctx.strokeStyle = '#fff'
       ctx.lineWidth = 1.5
       ctx.stroke()
+
+      // Troop health bar
+      const maxHp = TROOP_CONFIG[troopType]?.health ?? 45
+      const curHp = troop.health
+      const hpPct = maxHp > 0 ? curHp / maxHp : 1
+      const tBarW = 14
+      const tBarH = 2
+      const tBarX = screen.x - tBarW / 2
+      const tBarY = screen.y - 13
+
+      ctx.fillStyle = '#333'
+      ctx.fillRect(tBarX, tBarY, tBarW, tBarH)
+      ctx.fillStyle = hpPct > 0.5 ? '#2ecc71' : hpPct > 0.25 ? '#f39c12' : '#e74c3c'
+      ctx.fillRect(tBarX, tBarY, tBarW * hpPct, tBarH)
     }
 
     // HUD during replay
