@@ -2,6 +2,27 @@ export const GRID_SIZE = 40
 export const TILE_SIZE = 16
 export const CANVAS_SIZE = GRID_SIZE * TILE_SIZE // 640px
 
+// Isometric dimensions (2:1 ratio)
+export const HALF_W = 12 // tile diamond half-width
+export const HALF_H = 6  // tile diamond half-height
+export const ISO_CANVAS_W = 960
+export const ISO_CANVAS_H = 560
+export const TOP_PADDING = 40
+
+// Building heights (pixels) for isometric 3D boxes
+export const BUILDING_HEIGHTS: Record<number, number> = {
+  0: 24, // TownHall
+  1: 14, // GoldMine
+  2: 14, // ElixirCollector
+  3: 14, // GoldStorage
+  4: 14, // ElixirStorage
+  5: 18, // Barracks
+  6: 18, // ArmyCamp
+  7: 18, // Cannon
+  8: 18, // ArcherTower
+  9: 6,  // Wall
+}
+
 // Colors
 export const COLORS = {
   grass: '#228B22',

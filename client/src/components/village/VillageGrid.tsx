@@ -5,12 +5,16 @@ import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
-  TILE_SIZE,
-  CANVAS_SIZE,
+  HALF_W,
+  HALF_H,
+  ISO_CANVAS_W,
+  ISO_CANVAS_H,
+  TOP_PADDING,
   COLORS,
   BUILDING_SIZES,
   BUILDING_COLORS,
   BUILDING_NAMES,
+  BUILDING_HEIGHTS,
 } from '../../utils/constants'
 
 // Max levels must match Cairo config
@@ -73,6 +77,34 @@ function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
   return Math.max(0, finish - now)
 }
 
+// --- Isometric helpers ---
+
+function gridToScreen(gx: number, gy: number): { x: number; y: number } {
+  return {
+    x: (gx - gy) * HALF_W + ISO_CANVAS_W / 2,
+    y: (gx + gy) * HALF_H + TOP_PADDING,
+  }
+}
+
+function screenToGrid(sx: number, sy: number): { gx: number; gy: number } {
+  const dx = sx - ISO_CANVAS_W / 2
+  const dy = sy - TOP_PADDING
+  return {
+    gx: Math.floor((dx / HALF_W + dy / HALF_H) / 2),
+    gy: Math.floor((dy / HALF_H - dx / HALF_W) / 2),
+  }
+}
+
+function darkenColor(hex: string, factor: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const dr = Math.round(r * (1 - factor))
+  const dg = Math.round(g * (1 - factor))
+  const db = Math.round(b * (1 - factor))
+  return `rgb(${dr},${dg},${db})`
+}
+
 export function VillageGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const {
@@ -98,7 +130,7 @@ export function VillageGrid() {
     return () => clearInterval(interval)
   }, [])
 
-  // Draw the grid
+  // Draw the isometric grid
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -107,67 +139,153 @@ export function VillageGrid() {
     if (!ctx) return
 
     // Clear canvas
-    ctx.fillStyle = COLORS.grass
-    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
+    ctx.fillStyle = '#1a3a1a'
+    ctx.fillRect(0, 0, ISO_CANVAS_W, ISO_CANVAS_H)
 
-    // Draw grid lines
+    // Draw diamond grid
     ctx.strokeStyle = COLORS.gridLine
-    ctx.lineWidth = 1
-    for (let i = 0; i <= GRID_SIZE; i++) {
+    ctx.lineWidth = 0.5
+    for (let gy = 0; gy <= GRID_SIZE; gy++) {
+      const start = gridToScreen(0, gy)
+      const end = gridToScreen(GRID_SIZE, gy)
       ctx.beginPath()
-      ctx.moveTo(i * TILE_SIZE, 0)
-      ctx.lineTo(i * TILE_SIZE, CANVAS_SIZE)
+      ctx.moveTo(start.x, start.y)
+      ctx.lineTo(end.x, end.y)
       ctx.stroke()
-
+    }
+    for (let gx = 0; gx <= GRID_SIZE; gx++) {
+      const start = gridToScreen(gx, 0)
+      const end = gridToScreen(gx, GRID_SIZE)
       ctx.beginPath()
-      ctx.moveTo(0, i * TILE_SIZE)
-      ctx.lineTo(CANVAS_SIZE, i * TILE_SIZE)
+      ctx.moveTo(start.x, start.y)
+      ctx.lineTo(end.x, end.y)
       ctx.stroke()
     }
 
-    // Draw buildings
-    for (const building of buildings) {
+    // Sort buildings back-to-front for painter's algorithm
+    const sorted = [...buildings].sort((a, b) => (a.x + a.y) - (b.x + b.y))
+
+    // Draw buildings as 3D isometric boxes
+    for (const building of sorted) {
       const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
-      const color = BUILDING_COLORS[building.buildingType] || '#888'
+      const baseColor = BUILDING_COLORS[building.buildingType] || '#888'
+      const bh = BUILDING_HEIGHTS[building.buildingType] ?? 14
       const isSelected = selectedBuilding === building.buildingId
-      const bx = building.x * TILE_SIZE
-      const by = building.y * TILE_SIZE
-      const bw = size.width * TILE_SIZE
-      const bh = size.height * TILE_SIZE
 
-      // Building fill
-      ctx.fillStyle = color
-      ctx.fillRect(bx + 1, by + 1, bw - 2, bh - 2)
+      const gx = building.x
+      const gy = building.y
+      const w = size.width
+      const h = size.height
 
-      // Building border
-      ctx.strokeStyle = isSelected ? '#fff' : 'rgba(0,0,0,0.3)'
-      ctx.lineWidth = isSelected ? 3 : 1
-      ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2)
+      // Ground-plane corners
+      const topG = gridToScreen(gx, gy)
+      const rightG = gridToScreen(gx + w, gy)
+      const bottomG = gridToScreen(gx + w, gy + h)
+      const leftG = gridToScreen(gx, gy + h)
 
-      // Building level text
+      // Roof corners (shifted up by building height)
+      const topR = { x: topG.x, y: topG.y - bh }
+      const rightR = { x: rightG.x, y: rightG.y - bh }
+      const bottomR = { x: bottomG.x, y: bottomG.y - bh }
+      const leftR = { x: leftG.x, y: leftG.y - bh }
+
+      // Left face (medium shade - 30% darker)
+      ctx.beginPath()
+      ctx.moveTo(leftG.x, leftG.y)
+      ctx.lineTo(bottomG.x, bottomG.y)
+      ctx.lineTo(bottomR.x, bottomR.y)
+      ctx.lineTo(leftR.x, leftR.y)
+      ctx.closePath()
+      ctx.fillStyle = darkenColor(baseColor, 0.3)
+      ctx.fill()
+
+      // Right face (dark shade - 50% darker)
+      ctx.beginPath()
+      ctx.moveTo(rightG.x, rightG.y)
+      ctx.lineTo(bottomG.x, bottomG.y)
+      ctx.lineTo(bottomR.x, bottomR.y)
+      ctx.lineTo(rightR.x, rightR.y)
+      ctx.closePath()
+      ctx.fillStyle = darkenColor(baseColor, 0.5)
+      ctx.fill()
+
+      // Top face (base color)
+      ctx.beginPath()
+      ctx.moveTo(topR.x, topR.y)
+      ctx.lineTo(rightR.x, rightR.y)
+      ctx.lineTo(bottomR.x, bottomR.y)
+      ctx.lineTo(leftR.x, leftR.y)
+      ctx.closePath()
+      ctx.fillStyle = baseColor
+      ctx.fill()
+
+      // Selection border on all 3 faces
+      if (isSelected) {
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 2
+
+        // Left face outline
+        ctx.beginPath()
+        ctx.moveTo(leftG.x, leftG.y)
+        ctx.lineTo(bottomG.x, bottomG.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(leftR.x, leftR.y)
+        ctx.closePath()
+        ctx.stroke()
+
+        // Right face outline
+        ctx.beginPath()
+        ctx.moveTo(rightG.x, rightG.y)
+        ctx.lineTo(bottomG.x, bottomG.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(rightR.x, rightR.y)
+        ctx.closePath()
+        ctx.stroke()
+
+        // Top face outline
+        ctx.beginPath()
+        ctx.moveTo(topR.x, topR.y)
+        ctx.lineTo(rightR.x, rightR.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(leftR.x, leftR.y)
+        ctx.closePath()
+        ctx.stroke()
+      }
+
+      // Level text on top face
       ctx.fillStyle = '#fff'
       ctx.font = 'bold 10px sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(`L${building.level}`, bx + bw / 2, by + bh / 2)
+      const topCenter = {
+        x: (topR.x + rightR.x + bottomR.x + leftR.x) / 4,
+        y: (topR.y + rightR.y + bottomR.y + leftR.y) / 4,
+      }
+      ctx.fillText(`L${building.level}`, topCenter.x, topCenter.y)
 
       // Upgrading overlay + countdown
       if (building.isUpgrading) {
         const remaining = getUpgradeRemaining(building.upgradeFinishTime, now)
 
-        // Orange overlay
+        // Orange overlay on top face
+        ctx.beginPath()
+        ctx.moveTo(topR.x, topR.y)
+        ctx.lineTo(rightR.x, rightR.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(leftR.x, leftR.y)
+        ctx.closePath()
         ctx.fillStyle = 'rgba(255, 165, 0, 0.5)'
-        ctx.fillRect(bx + 1, by + 1, bw - 2, bh - 2)
+        ctx.fill()
 
-        // Countdown text
+        // Countdown text on top face
         ctx.fillStyle = '#fff'
         ctx.font = 'bold 9px sans-serif'
         ctx.textAlign = 'center'
-        ctx.textBaseline = 'bottom'
+        ctx.textBaseline = 'middle'
         ctx.fillText(
           remaining > 0 ? formatCountdown(remaining) : 'Ready!',
-          bx + bw / 2,
-          by + bh - 2
+          topCenter.x,
+          topCenter.y + 10
         )
       }
     }
@@ -175,32 +293,72 @@ export function VillageGrid() {
     // Draw placement preview
     if (isPlacing && mousePos && selectedBuildingType !== null) {
       const size = BUILDING_SIZES[selectedBuildingType] || { width: 1, height: 1 }
-      const gridX = Math.floor(mousePos.x / TILE_SIZE)
-      const gridY = Math.floor(mousePos.y / TILE_SIZE)
+      const { gx: gridX, gy: gridY } = screenToGrid(mousePos.x, mousePos.y)
 
       // Check if placement is valid
-      const outOfBounds = gridX + size.width > GRID_SIZE || gridY + size.height > GRID_SIZE
+      const outOfBounds = gridX < 0 || gridY < 0 ||
+        gridX + size.width > GRID_SIZE || gridY + size.height > GRID_SIZE
       const hasCollision = checkCollision(gridX, gridY, size.width, size.height)
       const isValid = !outOfBounds && !hasCollision
 
-      // Draw ghost
-      ctx.fillStyle = isValid ? COLORS.selectionValid : COLORS.selectionInvalid
-      ctx.fillRect(
-        gridX * TILE_SIZE,
-        gridY * TILE_SIZE,
-        size.width * TILE_SIZE,
-        size.height * TILE_SIZE
-      )
+      const previewColor = isValid ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)'
 
-      // Draw building preview
-      ctx.fillStyle = BUILDING_COLORS[selectedBuildingType] || '#888'
-      ctx.globalAlpha = 0.6
-      ctx.fillRect(
-        gridX * TILE_SIZE + 1,
-        gridY * TILE_SIZE + 1,
-        size.width * TILE_SIZE - 2,
-        size.height * TILE_SIZE - 2
-      )
+      // Ghost diamond footprint
+      const topG = gridToScreen(gridX, gridY)
+      const rightG = gridToScreen(gridX + size.width, gridY)
+      const bottomG = gridToScreen(gridX + size.width, gridY + size.height)
+      const leftG = gridToScreen(gridX, gridY + size.height)
+
+      ctx.beginPath()
+      ctx.moveTo(topG.x, topG.y)
+      ctx.lineTo(rightG.x, rightG.y)
+      ctx.lineTo(bottomG.x, bottomG.y)
+      ctx.lineTo(leftG.x, leftG.y)
+      ctx.closePath()
+      ctx.fillStyle = previewColor
+      ctx.fill()
+
+      // Semi-transparent building box preview
+      const baseColor = BUILDING_COLORS[selectedBuildingType] || '#888'
+      const bh = BUILDING_HEIGHTS[selectedBuildingType] ?? 14
+
+      const topR = { x: topG.x, y: topG.y - bh }
+      const rightR = { x: rightG.x, y: rightG.y - bh }
+      const bottomR = { x: bottomG.x, y: bottomG.y - bh }
+      const leftR = { x: leftG.x, y: leftG.y - bh }
+
+      ctx.globalAlpha = 0.5
+
+      // Left face
+      ctx.beginPath()
+      ctx.moveTo(leftG.x, leftG.y)
+      ctx.lineTo(bottomG.x, bottomG.y)
+      ctx.lineTo(bottomR.x, bottomR.y)
+      ctx.lineTo(leftR.x, leftR.y)
+      ctx.closePath()
+      ctx.fillStyle = darkenColor(baseColor, 0.3)
+      ctx.fill()
+
+      // Right face
+      ctx.beginPath()
+      ctx.moveTo(rightG.x, rightG.y)
+      ctx.lineTo(bottomG.x, bottomG.y)
+      ctx.lineTo(bottomR.x, bottomR.y)
+      ctx.lineTo(rightR.x, rightR.y)
+      ctx.closePath()
+      ctx.fillStyle = darkenColor(baseColor, 0.5)
+      ctx.fill()
+
+      // Top face
+      ctx.beginPath()
+      ctx.moveTo(topR.x, topR.y)
+      ctx.lineTo(rightR.x, rightR.y)
+      ctx.lineTo(bottomR.x, bottomR.y)
+      ctx.lineTo(leftR.x, leftR.y)
+      ctx.closePath()
+      ctx.fillStyle = baseColor
+      ctx.fill()
+
       ctx.globalAlpha = 1
     }
   }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now])
@@ -211,8 +369,10 @@ export function VillageGrid() {
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const scaleX = ISO_CANVAS_W / rect.width
+    const scaleY = ISO_CANVAS_H / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
 
     setMousePos({ x, y })
   }, [])
@@ -223,10 +383,11 @@ export function VillageGrid() {
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    const gridX = Math.floor(x / TILE_SIZE)
-    const gridY = Math.floor(y / TILE_SIZE)
+    const scaleX = ISO_CANVAS_W / rect.width
+    const scaleY = ISO_CANVAS_H / rect.height
+    const x = (e.clientX - rect.left) * scaleX
+    const y = (e.clientY - rect.top) * scaleY
+    const { gx: gridX, gy: gridY } = screenToGrid(x, y)
 
     if (isPlacing && selectedBuildingType !== null) {
       placeBuilding(gridX, gridY)
@@ -311,8 +472,8 @@ export function VillageGrid() {
     <div style={styles.container}>
       <canvas
         ref={canvasRef}
-        width={CANVAS_SIZE}
-        height={CANVAS_SIZE}
+        width={ISO_CANVAS_W}
+        height={ISO_CANVAS_H}
         style={styles.canvas}
         onMouseMove={handleMouseMove}
         onClick={handleClick}
@@ -411,6 +572,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: '4px solid #0f3460',
     borderRadius: '8px',
     cursor: 'crosshair',
+    maxWidth: '100%',
   },
   buildingInfo: {
     position: 'absolute',
