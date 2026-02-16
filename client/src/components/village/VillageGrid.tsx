@@ -135,6 +135,18 @@ export function VillageGrid() {
   const spritesRef = useRef<Record<number, HTMLImageElement>>({})
   const [spritesLoaded, setSpritesLoaded] = useState(false)
 
+  // Camera: zoom + pan
+  const MIN_ZOOM = 0.5
+  const MAX_ZOOM = 3.0
+  const zoomRef = useRef(1.0)
+  const panRef = useRef({ x: 0, y: 0 })
+  const [camTick, setCamTick] = useState(0) // trigger redraws on camera change
+  const isDragging = useRef(false)
+  const dragStart = useRef({ x: 0, y: 0 })
+  const dragPanStart = useRef({ x: 0, y: 0 })
+  const pinchStartDist = useRef(0)
+  const pinchStartZoom = useRef(1.0)
+
   // Load building sprites
   useEffect(() => {
     const entries = Object.entries(BUILDING_SPRITES)
@@ -167,13 +179,14 @@ export function VillageGrid() {
     return () => ro.disconnect()
   }, [])
 
-  // Compute scale + offset to fit logical viewport into actual canvas
+  // Compute scale + offset to fit logical viewport into actual canvas (includes zoom + pan)
   const getTransform = useCallback(() => {
-    const scale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
-    const tx = (canvasSize.w - ISO_CANVAS_W * scale) / 2
-    const ty = (canvasSize.h - ISO_CANVAS_H * scale) / 2
+    const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
+    const scale = baseScale * zoomRef.current
+    const tx = (canvasSize.w - ISO_CANVAS_W * scale) / 2 + panRef.current.x
+    const ty = (canvasSize.h - ISO_CANVAS_H * scale) / 2 + panRef.current.y
     return { scale, tx, ty }
-  }, [canvasSize])
+  }, [canvasSize, camTick])
 
   // Convert client mouse coords to logical coords
   const clientToLogical = useCallback((clientX: number, clientY: number) => {
@@ -470,29 +483,175 @@ export function VillageGrid() {
 
       ctx.globalAlpha = 1
     }
-  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded])
+  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick])
 
-  // Handle mouse move
+  // Handle mouse move (includes drag panning)
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isDragging.current) {
+      panRef.current = {
+        x: dragPanStart.current.x + (e.clientX - dragStart.current.x),
+        y: dragPanStart.current.y + (e.clientY - dragStart.current.y),
+      }
+      setCamTick((t) => t + 1)
+      return
+    }
     const pos = clientToLogical(e.clientX, e.clientY)
     setMousePos(pos)
   }, [clientToLogical])
 
-  // Handle click
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const pos = clientToLogical(e.clientX, e.clientY)
-    const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
-    if (isPlacing && selectedBuildingType !== null) {
-      placeBuilding(gridX, gridY)
-    } else {
-      const building = getBuildingAt(gridX, gridY)
-      setSelectedBuilding(building?.buildingId ?? null)
+  // Handle mouse down (start drag)
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Right-click or middle-click always pans; left-click pans only if not placing
+    if (e.button === 1 || e.button === 2 || (!isPlacing && e.button === 0)) {
+      isDragging.current = true
+      dragStart.current = { x: e.clientX, y: e.clientY }
+      dragPanStart.current = { ...panRef.current }
+    }
+  }, [isPlacing])
+
+  // Handle mouse up (end drag, fire click if no drag movement)
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const wasDragging = isDragging.current
+    const dx = Math.abs(e.clientX - dragStart.current.x)
+    const dy = Math.abs(e.clientY - dragStart.current.y)
+    isDragging.current = false
+
+    // Only fire click if mouse barely moved (< 5px)
+    if (wasDragging && dx < 5 && dy < 5 && e.button === 0) {
+      const pos = clientToLogical(e.clientX, e.clientY)
+      const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
+      if (isPlacing && selectedBuildingType !== null) {
+        placeBuilding(gridX, gridY)
+      } else {
+        const building = getBuildingAt(gridX, gridY)
+        setSelectedBuilding(building?.buildingId ?? null)
+      }
     }
   }, [isPlacing, selectedBuildingType, placeBuilding, getBuildingAt, clientToLogical])
+
+  // Handle click for placement mode (left-click when placing)
+  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isPlacing || selectedBuildingType === null) return
+    const pos = clientToLogical(e.clientX, e.clientY)
+    const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
+    placeBuilding(gridX, gridY)
+  }, [isPlacing, selectedBuildingType, placeBuilding, clientToLogical])
 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
     setMousePos(null)
+    isDragging.current = false
+  }, [])
+
+  // Mouse wheel zoom (toward cursor)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const cursorX = e.clientX - rect.left
+      const cursorY = e.clientY - rect.top
+
+      const oldZoom = zoomRef.current
+      const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * zoomDelta))
+      const ratio = newZoom / oldZoom
+
+      // Zoom toward cursor: adjust pan so the point under cursor stays fixed
+      const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
+      const oldCenterX = canvasSize.w / 2 + panRef.current.x
+      const oldCenterY = canvasSize.h / 2 + panRef.current.y
+      const newCenterX = cursorX + ratio * (oldCenterX - cursorX)
+      const newCenterY = cursorY + ratio * (oldCenterY - cursorY)
+      // Adjust pan to account for baseScale centering shift between old and new zoom
+      const oldBaseTx = (canvasSize.w - ISO_CANVAS_W * baseScale * oldZoom) / 2
+      const newBaseTx = (canvasSize.w - ISO_CANVAS_W * baseScale * newZoom) / 2
+      const oldBaseTy = (canvasSize.h - ISO_CANVAS_H * baseScale * oldZoom) / 2
+      const newBaseTy = (canvasSize.h - ISO_CANVAS_H * baseScale * newZoom) / 2
+
+      panRef.current = {
+        x: panRef.current.x + (newCenterX - oldCenterX) - (newBaseTx - oldBaseTx),
+        y: panRef.current.y + (newCenterY - oldCenterY) - (newBaseTy - oldBaseTy),
+      }
+      zoomRef.current = newZoom
+      setCamTick((t) => t + 1)
+    }
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [canvasSize])
+
+  // Touch handlers for pinch-zoom and drag-pan
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const getTouchDist = (t1: Touch, t2: Touch) =>
+      Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        isDragging.current = true
+        dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        dragPanStart.current = { ...panRef.current }
+      } else if (e.touches.length === 2) {
+        isDragging.current = false
+        pinchStartDist.current = getTouchDist(e.touches[0], e.touches[1])
+        pinchStartZoom.current = zoomRef.current
+        dragStart.current = {
+          x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+          y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        }
+        dragPanStart.current = { ...panRef.current }
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (e.touches.length === 1 && isDragging.current) {
+        panRef.current = {
+          x: dragPanStart.current.x + (e.touches[0].clientX - dragStart.current.x),
+          y: dragPanStart.current.y + (e.touches[0].clientY - dragStart.current.y),
+        }
+        setCamTick((t) => t + 1)
+      } else if (e.touches.length === 2) {
+        const dist = getTouchDist(e.touches[0], e.touches[1])
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+          pinchStartZoom.current * (dist / pinchStartDist.current)
+        ))
+        zoomRef.current = newZoom
+
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2
+        panRef.current = {
+          x: dragPanStart.current.x + (midX - dragStart.current.x),
+          y: dragPanStart.current.y + (midY - dragStart.current.y),
+        }
+        setCamTick((t) => t + 1)
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        isDragging.current = false
+      } else if (e.touches.length === 1) {
+        // Switched from pinch to single finger
+        isDragging.current = true
+        dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        dragPanStart.current = { ...panRef.current }
+      }
+    }
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false })
+    canvas.addEventListener('touchend', handleTouchEnd)
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart)
+      canvas.removeEventListener('touchmove', handleTouchMove)
+      canvas.removeEventListener('touchend', handleTouchEnd)
+    }
   }, [])
 
   // Skip fee estimation on Katana dev (block timestamp can be stale)
@@ -577,9 +736,12 @@ export function VillageGrid() {
       <canvas
         ref={canvasRef}
         style={styles.canvas}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        onClick={handleClick}
+        onMouseUp={handleMouseUp}
+        onClick={isPlacing ? handleClick : undefined}
         onMouseLeave={handleMouseLeave}
+        onContextMenu={(e) => e.preventDefault()}
       />
 
       {selectedBuildingData && (
