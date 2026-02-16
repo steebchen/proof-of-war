@@ -60,6 +60,19 @@ function getBuildingStats(buildingType: number, level: number): string {
   }
 }
 
+function formatCountdown(seconds: number): string {
+  if (seconds <= 0) return 'Done!'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
+  const finish = Number(upgradeFinishTime)
+  return Math.max(0, finish - now)
+}
+
 export function VillageGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const {
@@ -75,6 +88,15 @@ export function VillageGrid() {
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
   const [upgrading, setUpgrading] = useState(false)
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000))
+
+  // Tick every second for upgrade timers
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Draw the grid
   const draw = useCallback(() => {
@@ -108,45 +130,44 @@ export function VillageGrid() {
       const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
       const color = BUILDING_COLORS[building.buildingType] || '#888'
       const isSelected = selectedBuilding === building.buildingId
+      const bx = building.x * TILE_SIZE
+      const by = building.y * TILE_SIZE
+      const bw = size.width * TILE_SIZE
+      const bh = size.height * TILE_SIZE
 
       // Building fill
       ctx.fillStyle = color
-      ctx.fillRect(
-        building.x * TILE_SIZE + 1,
-        building.y * TILE_SIZE + 1,
-        size.width * TILE_SIZE - 2,
-        size.height * TILE_SIZE - 2
-      )
+      ctx.fillRect(bx + 1, by + 1, bw - 2, bh - 2)
 
       // Building border
       ctx.strokeStyle = isSelected ? '#fff' : 'rgba(0,0,0,0.3)'
       ctx.lineWidth = isSelected ? 3 : 1
-      ctx.strokeRect(
-        building.x * TILE_SIZE + 1,
-        building.y * TILE_SIZE + 1,
-        size.width * TILE_SIZE - 2,
-        size.height * TILE_SIZE - 2
-      )
+      ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2)
 
       // Building level text
       ctx.fillStyle = '#fff'
       ctx.font = 'bold 10px sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(
-        `L${building.level}`,
-        building.x * TILE_SIZE + (size.width * TILE_SIZE) / 2,
-        building.y * TILE_SIZE + (size.height * TILE_SIZE) / 2
-      )
+      ctx.fillText(`L${building.level}`, bx + bw / 2, by + bh / 2)
 
-      // Upgrading indicator
+      // Upgrading overlay + countdown
       if (building.isUpgrading) {
+        const remaining = getUpgradeRemaining(building.upgradeFinishTime, now)
+
+        // Orange overlay
         ctx.fillStyle = 'rgba(255, 165, 0, 0.5)'
-        ctx.fillRect(
-          building.x * TILE_SIZE + 1,
-          building.y * TILE_SIZE + 1,
-          size.width * TILE_SIZE - 2,
-          size.height * TILE_SIZE - 2
+        ctx.fillRect(bx + 1, by + 1, bw - 2, bh - 2)
+
+        // Countdown text
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 9px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.fillText(
+          remaining > 0 ? formatCountdown(remaining) : 'Ready!',
+          bx + bw / 2,
+          by + bh - 2
         )
       }
     }
@@ -182,7 +203,7 @@ export function VillageGrid() {
       )
       ctx.globalAlpha = 1
     }
-  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision])
+  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now])
 
   // Handle mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -280,6 +301,12 @@ export function VillageGrid() {
     ? buildings.find((b) => b.buildingId === selectedBuilding)
     : null
 
+  // Compute upgrade remaining for info panel
+  const upgradeRemaining = selectedBuildingData?.isUpgrading
+    ? getUpgradeRemaining(selectedBuildingData.upgradeFinishTime, now)
+    : 0
+  const upgradeReady = selectedBuildingData?.isUpgrading && upgradeRemaining <= 0
+
   return (
     <div style={styles.container}>
       <canvas
@@ -307,17 +334,25 @@ export function VillageGrid() {
             </p>
           )}
 
-          {/* Upgrading status */}
+          {/* Upgrading status with timer */}
           {selectedBuildingData.isUpgrading && (
-            <>
-              <p style={{ ...styles.stat, color: '#FFA500' }}>Upgrading...</p>
+            <div style={styles.upgradeSection}>
+              <p style={{ ...styles.stat, color: '#FFA500', fontWeight: 'bold' }}>
+                {upgradeReady ? 'Upgrade complete!' : `Upgrading... ${formatCountdown(upgradeRemaining)}`}
+              </p>
               <button
-                style={styles.upgradeBtn}
-                onClick={() => handleFinishUpgrade(selectedBuildingData.buildingId)}
+                style={{
+                  ...styles.upgradeBtn,
+                  backgroundColor: upgradeReady ? '#27ae60' : '#555',
+                  opacity: upgradeReady ? 1 : 0.5,
+                  cursor: upgradeReady ? 'pointer' : 'not-allowed',
+                }}
+                onClick={() => upgradeReady && handleFinishUpgrade(selectedBuildingData.buildingId)}
+                disabled={!upgradeReady}
               >
-                Finish Upgrade
+                {upgradeReady ? 'Finish Upgrade' : `${formatCountdown(upgradeRemaining)} remaining`}
               </button>
-            </>
+            </div>
           )}
 
           {/* Upgrade button */}
