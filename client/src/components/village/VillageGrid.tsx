@@ -6,17 +6,20 @@ import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
-  HALF_W,
-  HALF_H,
   ISO_CANVAS_W,
   ISO_CANVAS_H,
-  TOP_PADDING,
-  COLORS,
   BUILDING_SIZES,
   BUILDING_COLORS,
   BUILDING_NAMES,
   BUILDING_HEIGHTS,
 } from '../../utils/constants'
+import {
+  gridToScreen,
+  screenToGrid,
+  darkenColor,
+  drawIsoGrid,
+  drawIsoBuilding,
+} from '../../utils/isoRenderer'
 
 // Max levels must match Cairo config
 const MAX_LEVELS: Record<number, number> = {
@@ -99,24 +102,6 @@ function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
   return Math.max(0, finish - now)
 }
 
-// --- Isometric helpers ---
-
-function gridToScreen(gx: number, gy: number): { x: number; y: number } {
-  return {
-    x: (gx - gy) * HALF_W + ISO_CANVAS_W / 2,
-    y: (gx + gy) * HALF_H + TOP_PADDING,
-  }
-}
-
-function screenToGrid(sx: number, sy: number): { gx: number; gy: number } {
-  const dx = sx - ISO_CANVAS_W / 2
-  const dy = sy - TOP_PADDING
-  return {
-    gx: Math.floor((dx / HALF_W + dy / HALF_H) / 2),
-    gy: Math.floor((dy / HALF_H - dx / HALF_W) / 2),
-  }
-}
-
 // Building sprite map (building type → image path in public/)
 const BUILDING_SPRITES: Partial<Record<number, string>> = {
   [BuildingType.TownHall]: '/buildings/command-center.png',
@@ -124,16 +109,6 @@ const BUILDING_SPRITES: Partial<Record<number, string>> = {
   [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
   [BuildingType.GasCollector]: '/buildings/gas-extractor.png',
   [BuildingType.GasStorage]: '/buildings/gas-storage.png',
-}
-
-function darkenColor(hex: string, factor: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  const dr = Math.round(r * (1 - factor))
-  const dg = Math.round(g * (1 - factor))
-  const db = Math.round(b * (1 - factor))
-  return `rgb(${dr},${dg},${db})`
 }
 
 export function VillageGrid() {
@@ -265,155 +240,34 @@ export function VillageGrid() {
     ctx.fillRect(0, 0, ISO_CANVAS_W, ISO_CANVAS_H)
 
     // Draw diamond grid
-    ctx.strokeStyle = COLORS.gridLine
-    ctx.lineWidth = 0.5
-    for (let gy = 0; gy <= GRID_SIZE; gy++) {
-      const start = gridToScreen(0, gy)
-      const end = gridToScreen(GRID_SIZE, gy)
-      ctx.beginPath()
-      ctx.moveTo(start.x, start.y)
-      ctx.lineTo(end.x, end.y)
-      ctx.stroke()
-    }
-    for (let gx = 0; gx <= GRID_SIZE; gx++) {
-      const start = gridToScreen(gx, 0)
-      const end = gridToScreen(gx, GRID_SIZE)
-      ctx.beginPath()
-      ctx.moveTo(start.x, start.y)
-      ctx.lineTo(end.x, end.y)
-      ctx.stroke()
-    }
+    drawIsoGrid(ctx)
 
     // Sort buildings back-to-front for painter's algorithm
     const sorted = [...buildings].sort((a, b) => (a.x + a.y) - (b.x + b.y))
 
-    // Draw buildings as 3D isometric boxes or sprites
+    // Draw buildings
     for (const building of sorted) {
-      const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
-      const baseColor = BUILDING_COLORS[building.buildingType] || '#888'
-      const bh = BUILDING_HEIGHTS[building.buildingType] ?? 14
       const isSelected = selectedBuilding === building.buildingId
 
-      const gx = building.x
-      const gy = building.y
-      const w = size.width
-      const h = size.height
+      drawIsoBuilding(ctx, building, spritesRef.current, isSelected)
 
-      // Ground-plane corners
-      const topG = gridToScreen(gx, gy)
-      const rightG = gridToScreen(gx + w, gy)
-      const bottomG = gridToScreen(gx + w, gy + h)
-      const leftG = gridToScreen(gx, gy + h)
-
-      // Roof corners (shifted up by building height)
-      const topR = { x: topG.x, y: topG.y - bh }
-      const rightR = { x: rightG.x, y: rightG.y - bh }
-      const bottomR = { x: bottomG.x, y: bottomG.y - bh }
-      const leftR = { x: leftG.x, y: leftG.y - bh }
-
-      const sprite = spritesRef.current[building.buildingType]
-
-      // Grid footprint hint for all buildings
-      ctx.beginPath()
-      ctx.moveTo(topG.x, topG.y)
-      ctx.lineTo(rightG.x, rightG.y)
-      ctx.lineTo(bottomG.x, bottomG.y)
-      ctx.lineTo(leftG.x, leftG.y)
-      ctx.closePath()
-      ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.25)'
-      ctx.fill()
-      ctx.strokeStyle = isSelected ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.1)'
-      ctx.lineWidth = 1
-      ctx.stroke()
-
-      if (sprite) {
-        // Draw sprite image
-        const diamondW = rightG.x - leftG.x
-        const spriteScale = 1.0
-        const spriteW = diamondW * spriteScale
-        const spriteH = spriteW
-        const cx = (leftG.x + rightG.x) / 2
-        const drawX = cx - spriteW / 2
-        const drawY = bottomG.y - spriteH * 0.88
-
-        ctx.drawImage(sprite, drawX, drawY, spriteW, spriteH)
-      } else {
-        // 3D box rendering
-
-        // Left face (medium shade - 30% darker)
-        ctx.beginPath()
-        ctx.moveTo(leftG.x, leftG.y)
-        ctx.lineTo(bottomG.x, bottomG.y)
-        ctx.lineTo(bottomR.x, bottomR.y)
-        ctx.lineTo(leftR.x, leftR.y)
-        ctx.closePath()
-        ctx.fillStyle = darkenColor(baseColor, 0.3)
-        ctx.fill()
-
-        // Right face (dark shade - 50% darker)
-        ctx.beginPath()
-        ctx.moveTo(rightG.x, rightG.y)
-        ctx.lineTo(bottomG.x, bottomG.y)
-        ctx.lineTo(bottomR.x, bottomR.y)
-        ctx.lineTo(rightR.x, rightR.y)
-        ctx.closePath()
-        ctx.fillStyle = darkenColor(baseColor, 0.5)
-        ctx.fill()
-
-        // Top face (base color)
-        ctx.beginPath()
-        ctx.moveTo(topR.x, topR.y)
-        ctx.lineTo(rightR.x, rightR.y)
-        ctx.lineTo(bottomR.x, bottomR.y)
-        ctx.lineTo(leftR.x, leftR.y)
-        ctx.closePath()
-        ctx.fillStyle = baseColor
-        ctx.fill()
-
-        // Selection border on all 3 faces
-        if (isSelected) {
-          ctx.strokeStyle = '#fff'
-          ctx.lineWidth = 2
-
-          ctx.beginPath()
-          ctx.moveTo(leftG.x, leftG.y)
-          ctx.lineTo(bottomG.x, bottomG.y)
-          ctx.lineTo(bottomR.x, bottomR.y)
-          ctx.lineTo(leftR.x, leftR.y)
-          ctx.closePath()
-          ctx.stroke()
-
-          ctx.beginPath()
-          ctx.moveTo(rightG.x, rightG.y)
-          ctx.lineTo(bottomG.x, bottomG.y)
-          ctx.lineTo(bottomR.x, bottomR.y)
-          ctx.lineTo(rightR.x, rightR.y)
-          ctx.closePath()
-          ctx.stroke()
-
-          ctx.beginPath()
-          ctx.moveTo(topR.x, topR.y)
-          ctx.lineTo(rightR.x, rightR.y)
-          ctx.lineTo(bottomR.x, bottomR.y)
-          ctx.lineTo(leftR.x, leftR.y)
-          ctx.closePath()
-          ctx.stroke()
-        }
-      }
-
-      // Level text on top face
-      ctx.fillStyle = '#fff'
-      ctx.font = 'bold 10px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      const topCenter = {
-        x: (topR.x + rightR.x + bottomR.x + leftR.x) / 4,
-        y: (topR.y + rightR.y + bottomR.y + leftR.y) / 4,
-      }
-      ctx.fillText(`L${building.level}`, topCenter.x, topCenter.y)
-
-      // Upgrading overlay + countdown
+      // Upgrading overlay + countdown (village-specific)
       if (building.isUpgrading) {
+        const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
+        const bh = BUILDING_HEIGHTS[building.buildingType] ?? 14
+        const topG = gridToScreen(building.x, building.y)
+        const rightG = gridToScreen(building.x + size.width, building.y)
+        const bottomG = gridToScreen(building.x + size.width, building.y + size.height)
+        const leftG = gridToScreen(building.x, building.y + size.height)
+        const topR = { x: topG.x, y: topG.y - bh }
+        const rightR = { x: rightG.x, y: rightG.y - bh }
+        const bottomR = { x: bottomG.x, y: bottomG.y - bh }
+        const leftR = { x: leftG.x, y: leftG.y - bh }
+        const topCenter = {
+          x: (topR.x + rightR.x + bottomR.x + leftR.x) / 4,
+          y: (topR.y + rightR.y + bottomR.y + leftR.y) / 4,
+        }
+
         const remaining = getUpgradeRemaining(building.upgradeFinishTime, now)
 
         // Orange overlay on top face

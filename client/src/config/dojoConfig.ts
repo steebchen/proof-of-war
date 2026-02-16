@@ -5,6 +5,8 @@ export const dojoConfig = {
   buildingSystemAddress: import.meta.env.VITE_BUILDING_SYSTEM_ADDRESS || '0x0',
   resourceSystemAddress: import.meta.env.VITE_RESOURCE_SYSTEM_ADDRESS || '0x0',
   villageSystemAddress: import.meta.env.VITE_VILLAGE_SYSTEM_ADDRESS || '0x0',
+  combatSystemAddress: import.meta.env.VITE_COMBAT_SYSTEM_ADDRESS || '0x0',
+  trainingSystemAddress: import.meta.env.VITE_TRAINING_SYSTEM_ADDRESS || '0x0',
   namespace: 'clash',
 }
 

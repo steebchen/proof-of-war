@@ -27,6 +27,7 @@ pub struct Battle {
     pub defender_trophies_change: i32,
     pub deployed_troop_count: u32,
     pub building_count: u32,
+    pub tick_count: u32,
 }
 
 #[derive(Clone, Drop, Serde)]
@@ -53,6 +54,7 @@ pub struct BattleBuilding {
     #[key]
     pub building_id: u32,
     pub building_type: BuildingType,
+    pub level: u8,
     pub x: u8,
     pub y: u8,
     pub max_health: u32,

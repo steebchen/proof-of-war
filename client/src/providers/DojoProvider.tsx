@@ -53,6 +53,8 @@ interface DojoContextType {
   setBuildings: (buildings: Building[]) => void
   setArmy: (army: Army | null) => void
   fetchPlayerData: (address: string) => Promise<boolean>
+  fetchDefenderBuildings: (address: string) => Promise<Building[]>
+  fetchBattleData: (battleId?: number) => Promise<number | null>
   refreshData: () => void
   // Building placement state (shared across components)
   isPlacing: boolean
@@ -374,6 +376,94 @@ export function DojoProvider({ children }: { children: ReactNode }) {
     }
   }, [sdk])
 
+  // Fetch defender's buildings for attack screen
+  const fetchDefenderBuildings = useCallback(async (address: string): Promise<Building[]> => {
+    if (!sdk) return []
+
+    try {
+      const paddedAddress = addAddressPadding(address)
+
+      const buildingsQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          MemberClause(
+            MODELS.Building,
+            'owner',
+            'Eq',
+            paddedAddress
+          ).build()
+        )
+        .withLimit(100)
+
+      const buildingsResponse = await sdk.getEntities({ query: buildingsQuery })
+      const buildingEntities = buildingsResponse.getItems()
+      const fetchedBuildings: Building[] = []
+      for (const entity of buildingEntities) {
+        const buildingData = entity.models?.clash?.Building
+        if (buildingData) {
+          fetchedBuildings.push(transformBuilding(buildingData as ClashSchemaType['clash']['Building']))
+        }
+      }
+      return fetchedBuildings
+    } catch (err) {
+      console.error('Failed to fetch defender buildings:', err)
+      return []
+    }
+  }, [sdk])
+
+  // Fetch battle data (battle counter for latest ID, or specific battle)
+  const fetchBattleData = useCallback(async (battleId?: number): Promise<number | null> => {
+    if (!sdk) return null
+
+    try {
+      if (battleId !== undefined) {
+        // Fetch specific battle
+        const battleQuery = new ToriiQueryBuilder<ClashSchemaType>()
+          .withClause(
+            KeysClause(
+              [MODELS.Battle],
+              [battleId.toString()],
+              'FixedLen'
+            ).build()
+          )
+
+        const response = await sdk.getEntities({ query: battleQuery })
+        const entities = response.getItems()
+        for (const entity of entities) {
+          const battleData = entity.models?.clash?.Battle
+          if (battleData) {
+            return parseInt(battleData.destruction_percent || '0', 10)
+          }
+        }
+        return null
+      } else {
+        // Fetch battle counter to get the latest battle ID
+        const counterQuery = new ToriiQueryBuilder<ClashSchemaType>()
+          .withClause(
+            KeysClause(
+              [MODELS.BattleCounter],
+              ['0'],
+              'FixedLen'
+            ).build()
+          )
+
+        const response = await sdk.getEntities({ query: counterQuery })
+        const entities = response.getItems()
+        for (const entity of entities) {
+          const counterData = entity.models?.clash?.BattleCounter
+          if (counterData) {
+            // Return the latest battle ID (next_battle_id - 1)
+            const nextId = parseInt(counterData.next_battle_id || '0', 10)
+            return nextId > 0 ? nextId - 1 : null
+          }
+        }
+        return null
+      }
+    } catch (err) {
+      console.error('Failed to fetch battle data:', err)
+      return null
+    }
+  }, [sdk])
+
   const refreshData = useCallback(() => {
     if (player?.address) {
       fetchPlayerData(player.address)
@@ -393,6 +483,8 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         setBuildings,
         setArmy,
         fetchPlayerData,
+        fetchDefenderBuildings,
+        fetchBattleData,
         refreshData,
         isPlacing,
         selectedBuildingType,

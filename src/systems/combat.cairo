@@ -5,8 +5,7 @@ use clash_prototype::models::troop::TroopType;
 pub trait ICombat<T> {
     fn start_attack(ref self: T, defender: ContractAddress);
     fn deploy_troop(ref self: T, battle_id: u32, troop_type: TroopType, x: u16, y: u16);
-    fn process_combat(ref self: T, battle_id: u32);
-    fn end_battle(ref self: T, battle_id: u32);
+    fn resolve_battle(ref self: T, battle_id: u32);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -56,7 +55,8 @@ pub mod combat_system {
         Battle, BattleStatus, DeployedTroop, BattleBuilding, BattleCounter
     };
     use clash_prototype::utils::config::{
-        BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE
+        BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE,
+        TICKS_PER_BATTLE, get_defense_stats
     };
 
     #[abi(embed_v0)]
@@ -104,6 +104,7 @@ pub mod combat_system {
                 defender_trophies_change: 0,
                 deployed_troop_count: 0,
                 building_count: 0,
+                tick_count: 0,
             };
             world.write_model(@battle);
 
@@ -127,6 +128,7 @@ pub mod combat_system {
                         battle_id,
                         building_id: i,
                         building_type: building.building_type,
+                        level: building.level,
                         x: building.x,
                         y: building.y,
                         max_health: building.health,
@@ -216,137 +218,188 @@ pub mod combat_system {
             });
         }
 
-        fn process_combat(ref self: ContractState, battle_id: u32) {
+        fn resolve_battle(ref self: ContractState, battle_id: u32) {
             let mut world = self.world_default();
-            let current_time = get_block_timestamp();
+            let caller = get_caller_address();
 
             // Get battle
             let mut battle: Battle = world.read_model(battle_id);
+            assert(battle.attacker == caller, 'Not the attacker');
             assert(battle.status == BattleStatus::InProgress, 'Battle not in progress');
+            assert(battle.deployed_troop_count > 0, 'No troops deployed');
 
-            // Process each deployed troop
-            let mut troop_idx: u32 = 1;
+            // Run simulation for TICKS_PER_BATTLE ticks
+            let mut tick: u32 = 0;
             loop {
-                if troop_idx > battle.deployed_troop_count {
+                if tick >= TICKS_PER_BATTLE {
                     break;
                 }
+                tick += 1;
 
-                let mut troop: DeployedTroop = world.read_model((battle_id, troop_idx));
+                // === 1. Move troops toward targets and attack ===
+                let mut troop_idx: u32 = 1;
+                loop {
+                    if troop_idx > battle.deployed_troop_count {
+                        break;
+                    }
 
-                if troop.is_alive {
-                    let config = get_troop_config(troop.troop_type);
+                    let mut troop: DeployedTroop = world.read_model((battle_id, troop_idx));
 
-                    // Find nearest building if no target
-                    if troop.target_building_id == 0 {
-                        let nearest = self.find_nearest_building(@world, battle_id, battle.building_count, troop.x, troop.y);
-                        troop.target_building_id = nearest;
+                    if troop.is_alive {
+                        let config = get_troop_config(troop.troop_type);
+
+                        // Find nearest building if no target or target destroyed
+                        if troop.target_building_id > 0 {
+                            let current_target: BattleBuilding = world.read_model((battle_id, troop.target_building_id));
+                            if current_target.is_destroyed {
+                                troop.target_building_id = 0;
+                            }
+                        }
+
+                        if troop.target_building_id == 0 {
+                            let nearest = self.find_nearest_building(@world, battle_id, battle.building_count, troop.x, troop.y);
+                            troop.target_building_id = nearest;
+                        }
+
+                        // Move toward target or attack
+                        if troop.target_building_id > 0 {
+                            let mut target: BattleBuilding = world.read_model((battle_id, troop.target_building_id));
+
+                            if !target.is_destroyed {
+                                // Calculate distance to target (in pixel coords)
+                                let target_x: u32 = target.x.into() * 10;
+                                let target_y: u32 = target.y.into() * 10;
+                                let troop_x: u32 = troop.x.into();
+                                let troop_y: u32 = troop.y.into();
+
+                                let abs_dx: u32 = if troop_x > target_x { troop_x - target_x } else { target_x - troop_x };
+                                let abs_dy: u32 = if troop_y > target_y { troop_y - target_y } else { target_y - troop_y };
+                                let dist_sq: u32 = abs_dx * abs_dx + abs_dy * abs_dy;
+
+                                let range_px: u32 = config.attack_range.into() * 10;
+                                let range_sq: u32 = range_px * range_px;
+
+                                if dist_sq <= range_sq {
+                                    // In range — attack
+                                    if target.current_health <= config.damage {
+                                        target.current_health = 0;
+                                        target.is_destroyed = true;
+
+                                        // Loot the building
+                                        battle.diamond_stolen += target.diamond_loot;
+                                        battle.gas_stolen += target.gas_loot;
+
+                                        // Calculate destruction percentage
+                                        let destroyed_count = self.count_destroyed_buildings(@world, battle_id, battle.building_count);
+                                        battle.destruction_percent = ((destroyed_count * 100) / battle.building_count).try_into().unwrap();
+
+                                        // Clear target so troop finds a new one next tick
+                                        troop.target_building_id = 0;
+                                    } else {
+                                        target.current_health -= config.damage;
+                                    }
+
+                                    world.write_model(@target);
+                                } else {
+                                    // Not in range — move toward target
+                                    let speed: u16 = config.movement_speed.into();
+                                    let abs_dx_16: u16 = abs_dx.try_into().unwrap();
+                                    let abs_dy_16: u16 = abs_dy.try_into().unwrap();
+
+                                    let (x_move, y_move) = if abs_dx_16 >= abs_dy_16 {
+                                        let xm = if speed < abs_dx_16 { speed } else { abs_dx_16 };
+                                        let remaining = speed - xm;
+                                        let ym = if remaining < abs_dy_16 { remaining } else { abs_dy_16 };
+                                        (xm, ym)
+                                    } else {
+                                        let ym = if speed < abs_dy_16 { speed } else { abs_dy_16 };
+                                        let remaining = speed - ym;
+                                        let xm = if remaining < abs_dx_16 { remaining } else { abs_dx_16 };
+                                        (xm, ym)
+                                    };
+
+                                    // Apply direction
+                                    if troop_x > target_x {
+                                        troop.x -= x_move;
+                                    } else {
+                                        troop.x += x_move;
+                                    }
+                                    if troop_y > target_y {
+                                        troop.y -= y_move;
+                                    } else {
+                                        troop.y += y_move;
+                                    }
+                                }
+                            }
+                        }
+
                         world.write_model(@troop);
                     }
 
-                    // Attack target building
-                    if troop.target_building_id > 0 {
-                        let mut target: BattleBuilding = world.read_model((battle_id, troop.target_building_id));
+                    troop_idx += 1;
+                };
 
-                        if !target.is_destroyed {
-                            // Deal damage
-                            if target.current_health <= config.damage {
-                                target.current_health = 0;
-                                target.is_destroyed = true;
+                // === 2. Defenses counter-attack (use real stats) ===
+                let mut building_idx: u32 = 1;
+                loop {
+                    if building_idx > battle.building_count {
+                        break;
+                    }
 
-                                // Loot the building
-                                battle.diamond_stolen += target.diamond_loot;
-                                battle.gas_stolen += target.gas_loot;
+                    let defense: BattleBuilding = world.read_model((battle_id, building_idx));
 
-                                // Calculate destruction percentage
-                                let destroyed_count = self.count_destroyed_buildings(@world, battle_id, battle.building_count);
-                                battle.destruction_percent = ((destroyed_count * 100) / battle.building_count).try_into().unwrap();
+                    if !defense.is_destroyed {
+                        let is_defense = defense.building_type == BuildingType::Cannon
+                            || defense.building_type == BuildingType::ArcherTower;
 
-                                // Clear troop's target so it finds a new one
-                                troop.target_building_id = 0;
-                                world.write_model(@troop);
-                            } else {
-                                target.current_health -= config.damage;
+                        if is_defense {
+                            let defense_stats = get_defense_stats(defense.building_type, defense.level);
+                            let defense_range_px: u32 = defense_stats.range.into() * 10;
+                            let defense_range_sq: u32 = defense_range_px * defense_range_px;
+
+                            // Find nearest alive troop
+                            let (nearest_troop_id, nearest_dist) = self.find_nearest_troop(
+                                @world, battle_id, battle.deployed_troop_count, defense.x.into(), defense.y.into()
+                            );
+
+                            // Only attack if troop is within range
+                            if nearest_troop_id > 0 && nearest_dist <= defense_range_sq {
+                                let mut target_troop: DeployedTroop = world.read_model((battle_id, nearest_troop_id));
+
+                                if target_troop.is_alive {
+                                    if target_troop.health <= defense_stats.damage {
+                                        target_troop.health = 0;
+                                        target_troop.is_alive = false;
+                                    } else {
+                                        target_troop.health -= defense_stats.damage;
+                                    }
+                                    world.write_model(@target_troop);
+                                }
                             }
-
-                            world.write_model(@target);
-                        } else {
-                            // Target destroyed, find new target
-                            troop.target_building_id = 0;
-                            world.write_model(@troop);
                         }
                     }
-                }
 
-                troop_idx += 1;
-            };
+                    building_idx += 1;
+                };
 
-            // Process defense attacks on troops
-            let mut building_idx: u32 = 1;
-            loop {
-                if building_idx > battle.building_count {
+                // === 3. Check end conditions ===
+                if battle.destruction_percent == 100 {
                     break;
                 }
 
-                let defense: BattleBuilding = world.read_model((battle_id, building_idx));
-
-                if !defense.is_destroyed {
-                    // Check if it's a defense building
-                    let is_defense = defense.building_type == BuildingType::Cannon
-                        || defense.building_type == BuildingType::ArcherTower;
-
-                    if is_defense {
-                        // Find and attack nearest troop
-                        let (nearest_troop_id, _) = self.find_nearest_troop(
-                            @world, battle_id, battle.deployed_troop_count, defense.x.into(), defense.y.into()
-                        );
-
-                        if nearest_troop_id > 0 {
-                            let mut target_troop: DeployedTroop = world.read_model((battle_id, nearest_troop_id));
-
-                            if target_troop.is_alive {
-                                // Deal damage (simplified: 10 damage per tick)
-                                let defense_damage: u32 = 10;
-                                if target_troop.health <= defense_damage {
-                                    target_troop.health = 0;
-                                    target_troop.is_alive = false;
-                                } else {
-                                    target_troop.health -= defense_damage;
-                                }
-                                world.write_model(@target_troop);
-                            }
-                        }
-                    }
+                let alive_troops = self.count_alive_troops(@world, battle_id, battle.deployed_troop_count);
+                if alive_troops == 0 {
+                    break;
                 }
-
-                building_idx += 1;
             };
 
-            // Update battle
+            // Record how many ticks the battle ran
+            battle.tick_count = tick;
+
+            // Save battle state before ending
             world.write_model(@battle);
 
-            // Check if battle should end
-            if current_time >= battle.ends_at || battle.destruction_percent == 100 {
-                self._end_battle(ref world, battle_id);
-            }
-
-            // Check if all troops are dead
-            let alive_troops = self.count_alive_troops(@world, battle_id, battle.deployed_troop_count);
-            if alive_troops == 0 && battle.deployed_troop_count > 0 {
-                self._end_battle(ref world, battle_id);
-            }
-        }
-
-        fn end_battle(ref self: ContractState, battle_id: u32) {
-            let mut world = self.world_default();
-            let current_time = get_block_timestamp();
-
-            let battle: Battle = world.read_model(battle_id);
-            assert(battle.status == BattleStatus::InProgress || battle.status == BattleStatus::Preparing, 'Battle already ended');
-
-            // Allow ending if time is up or caller is attacker
-            let caller = get_caller_address();
-            assert(current_time >= battle.ends_at || caller == battle.attacker, 'Cannot end yet');
-
+            // End battle: transfer loot, calculate trophies
             self._end_battle(ref world, battle_id);
         }
     }
@@ -453,17 +506,13 @@ pub mod combat_system {
                 let building: BattleBuilding = world.read_model((battle_id, i));
 
                 if !building.is_destroyed {
-                    // Calculate squared distance (no sqrt needed for comparison)
-                    let dx: u32 = if troop_x > building.x.into() * 10 {
-                        (troop_x - building.x.into() * 10).into()
-                    } else {
-                        (building.x.into() * 10 - troop_x).into()
-                    };
-                    let dy: u32 = if troop_y > building.y.into() * 10 {
-                        (troop_y - building.y.into() * 10).into()
-                    } else {
-                        (building.y.into() * 10 - troop_y).into()
-                    };
+                    let bx: u32 = building.x.into() * 10;
+                    let by: u32 = building.y.into() * 10;
+                    let tx: u32 = troop_x.into();
+                    let ty: u32 = troop_y.into();
+
+                    let dx: u32 = if tx > bx { tx - bx } else { bx - tx };
+                    let dy: u32 = if ty > by { ty - by } else { by - ty };
                     let dist = dx * dx + dy * dy;
 
                     if dist < nearest_dist {
@@ -498,16 +547,13 @@ pub mod combat_system {
                 let troop: DeployedTroop = world.read_model((battle_id, i));
 
                 if troop.is_alive {
-                    let dx: u32 = if troop.x > building_x * 10 {
-                        (troop.x - building_x * 10).into()
-                    } else {
-                        (building_x * 10 - troop.x).into()
-                    };
-                    let dy: u32 = if troop.y > building_y * 10 {
-                        (troop.y - building_y * 10).into()
-                    } else {
-                        (building_y * 10 - troop.y).into()
-                    };
+                    let bx: u32 = building_x.into() * 10;
+                    let by: u32 = building_y.into() * 10;
+                    let tx: u32 = troop.x.into();
+                    let ty: u32 = troop.y.into();
+
+                    let dx: u32 = if tx > bx { tx - bx } else { bx - tx };
+                    let dy: u32 = if ty > by { ty - by } else { by - ty };
                     let dist = dx * dx + dy * dy;
 
                     if dist < nearest_dist {

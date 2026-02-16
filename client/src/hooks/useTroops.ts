@@ -1,11 +1,19 @@
 import { useDojo } from '../providers/DojoProvider'
 import { useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { TroopType, TROOP_INFO } from '../config/dojoConfig'
+import { TroopType, TROOP_INFO, BuildingType, dojoConfig } from '../config/dojoConfig'
 import { useResources } from './useResources'
 
+const noFeeDetails = {
+  resourceBounds: {
+    l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
+    l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
+    l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
+  },
+}
+
 export function useTroops() {
-  const { army, setArmy } = useDojo()
+  const { army, setArmy, buildings } = useDojo()
   const { account } = useAccount()
   const { canAfford } = useResources()
 
@@ -33,7 +41,15 @@ export function useTroops() {
       return false
     }
 
+    // Find first barracks building
+    const barracks = buildings.find(b => b.buildingType === BuildingType.Barracks && !b.isUpgrading)
+    if (!barracks) {
+      console.error('No available barracks')
+      return false
+    }
+
     // Optimistically update army
+    const prevArmy = { ...army }
     const newArmy = { ...army }
     if (troopType === TroopType.Barbarian) {
       newArmy.barbarians += quantity
@@ -43,11 +59,41 @@ export function useTroops() {
     newArmy.totalSpaceUsed += totalSpace
     setArmy(newArmy)
 
-    // TODO: Call contract
-    console.log('Training troops:', { troopType, quantity })
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.trainingSystemAddress,
+          entrypoint: 'train_troops',
+          calldata: [barracks.buildingId, troopType, quantity],
+        },
+      ], noFeeDetails)
+      console.log('Training started on-chain')
+      return true
+    } catch (error) {
+      console.error('Failed to train troops:', error)
+      setArmy(prevArmy)
+      return false
+    }
+  }, [account, army, buildings, canAfford, setArmy])
 
-    return true
-  }, [account, army, canAfford, setArmy])
+  const collectTroops = useCallback(async (barracksId: number) => {
+    if (!account) return false
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.trainingSystemAddress,
+          entrypoint: 'collect_trained_troops',
+          calldata: [barracksId],
+        },
+      ], noFeeDetails)
+      console.log('Troops collected on-chain')
+      return true
+    } catch (error) {
+      console.error('Failed to collect troops:', error)
+      return false
+    }
+  }, [account])
 
   const getTroopCount = useCallback((troopType: TroopType): number => {
     if (troopType === TroopType.Barbarian) return barbarians
@@ -60,6 +106,7 @@ export function useTroops() {
     totalSpace,
     maxCapacity,
     trainTroops,
+    collectTroops,
     getTroopCount,
   }
 }
