@@ -102,6 +102,8 @@ function screenToGrid(sx: number, sy: number): { gx: number; gy: number } {
 const BUILDING_SPRITES: Partial<Record<number, string>> = {
   [BuildingType.DiamondMine]: '/buildings/diamond-refinery.png',
   [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
+  [BuildingType.GasCollector]: '/buildings/gas-extractor.png',
+  [BuildingType.GasStorage]: '/buildings/gas-storage.png',
 }
 
 function darkenColor(hex: string, factor: number): string {
