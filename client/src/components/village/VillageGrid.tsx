@@ -113,6 +113,9 @@ const BUILDING_SPRITES: Partial<Record<number, string>> = {
   [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
   [BuildingType.GasCollector]: '/buildings/gas-extractor.png',
   [BuildingType.GasStorage]: '/buildings/gas-storage.png',
+  [BuildingType.Cannon]: '/buildings/cannon.png',
+  [BuildingType.ArmyCamp]: '/buildings/camp.png',
+  [BuildingType.Barracks]: '/buildings/barracks.png',
 }
 
 export function VillageGrid() {
