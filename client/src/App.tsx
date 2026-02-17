@@ -236,6 +236,33 @@ function App() {
           }}
         />
       )}
+
+      {/* Dev mode: spawn button always accessible */}
+      {isConnected && !player && !isFetchingPlayer && (
+        <button
+          style={styles.devSpawnBtn}
+          onClick={handleSpawn}
+          disabled={isSpawning}
+        >
+          {isSpawning ? 'Spawning...' : 'Dev: Spawn Village'}
+        </button>
+      )}
+      {isConnected && player && (
+        <button
+          style={styles.devSpawnBtn}
+          onClick={async () => {
+            // Reset local state and re-spawn (works after Katana restart)
+            setPlayer(null)
+            setBuildings([])
+            setArmy(null)
+            hasFetchedRef.current = false
+            await handleSpawn()
+          }}
+          disabled={isSpawning}
+        >
+          {isSpawning ? 'Spawning...' : 'Dev: Respawn'}
+        </button>
+      )}
     </div>
   )
 }
@@ -294,6 +321,21 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontWeight: 'bold',
     fontSize: '18px',
+  },
+  devSpawnBtn: {
+    position: 'fixed',
+    bottom: '80px',
+    left: '16px',
+    padding: '8px 14px',
+    backgroundColor: '#e67e22',
+    color: '#fff',
+    border: '2px solid #d35400',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    zIndex: 200,
+    opacity: 0.85,
   },
   spinner: {
     width: '40px',
