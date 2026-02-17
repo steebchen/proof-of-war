@@ -130,7 +130,7 @@ export function VillageGrid() {
     getBuildingAt,
   } = useBuildings()
   const { canAfford } = useResources()
-  const { player, setBuildings, builderQueue, setBuilderQueue } = useDojo()
+  const { player, setPlayer, setBuildings, builderQueue, setBuilderQueue } = useDojo()
   const { account } = useAccount()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
@@ -441,8 +441,9 @@ export function VillageGrid() {
     if (!account || pending) return
     setPending(true)
 
-    // Optimistically mark the building as upgrading
+    // Optimistically mark the building as upgrading and consume a builder
     const prevBuildings = buildings
+    const prevPlayer = player
     const building = buildings.find(b => b.buildingId === buildingId)
     if (building) {
       const nextLevel = building.level + 1
@@ -453,6 +454,9 @@ export function VillageGrid() {
           ? { ...b, isUpgrading: true, upgradeFinishTime: finishTime }
           : b
       ))
+    }
+    if (player && player.freeBuilders > 0) {
+      setPlayer({ ...player, freeBuilders: player.freeBuilders - 1 })
     }
 
     try {
@@ -466,20 +470,22 @@ export function VillageGrid() {
       console.log('Upgrade started on-chain')
     } catch (error) {
       console.error('Failed to upgrade:', error)
-      // Revert optimistic update on failure
+      // Revert optimistic updates on failure
       setBuildings(prevBuildings)
+      if (prevPlayer) setPlayer(prevPlayer)
     } finally {
       setPending(false)
     }
-  }, [account, pending, buildings, setBuildings])
+  }, [account, pending, buildings, player, setBuildings, setPlayer])
 
   // Finish upgrade on-chain with optimistic update
   const handleFinishUpgrade = useCallback(async (buildingId: number) => {
     if (!account || pending) return
     setPending(true)
 
-    // Optimistically complete the upgrade
+    // Optimistically complete the upgrade and free the builder
     const prevBuildings = buildings
+    const prevPlayer = player
     const building = buildings.find(b => b.buildingId === buildingId)
     if (building) {
       setBuildings(buildings.map(b =>
@@ -487,6 +493,14 @@ export function VillageGrid() {
           ? { ...b, isUpgrading: false, upgradeFinishTime: BigInt(0), level: b.level + 1 }
           : b
       ))
+    }
+    if (player) {
+      const updatedPlayer = { ...player, freeBuilders: player.freeBuilders + 1 }
+      // If finishing an Army Camp upgrade, also increase max_builders
+      if (building?.buildingType === BuildingType.ArmyCamp) {
+        updatedPlayer.maxBuilders = Math.min(5, updatedPlayer.maxBuilders + 1)
+      }
+      setPlayer(updatedPlayer)
     }
 
     try {
@@ -500,12 +514,13 @@ export function VillageGrid() {
       console.log('Upgrade finished on-chain')
     } catch (error) {
       console.error('Failed to finish upgrade:', error)
-      // Revert optimistic update on failure
+      // Revert optimistic updates on failure
       setBuildings(prevBuildings)
+      if (prevPlayer) setPlayer(prevPlayer)
     } finally {
       setPending(false)
     }
-  }, [account, pending, buildings, setBuildings])
+  }, [account, pending, buildings, player, setBuildings, setPlayer])
 
   // Train builder on-chain
   const handleTrainBuilder = useCallback(async (armyCampId: number) => {
