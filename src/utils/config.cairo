@@ -7,9 +7,20 @@ pub const GRID_SIZE: u8 = 40;
 pub const STARTING_DIAMOND: u64 = 2000;
 pub const STARTING_GAS: u64 = 1000;
 
-// Builder training
-pub const BUILDER_TRAINING_TIME: u64 = 120; // 2 minutes
+// Builder (worker) training at Command Center
+pub const MAX_BUILDERS: u8 = 5;
 pub const BUILDER_TRAINING_COST: u64 = 150; // gas
+
+// Exponential training times: 2nd=60s, 3rd=1h, 4th=2d, 5th=5d, (6th would be 15d but max is 5)
+pub fn get_builder_training_time(total_builders: u8) -> u64 {
+    match total_builders {
+        1 => 60,           // 2nd worker: 1 minute
+        2 => 3600,         // 3rd worker: 1 hour
+        3 => 172800,       // 4th worker: 2 days
+        4 => 432000,       // 5th worker: 5 days
+        _ => 1296000,      // fallback: 15 days
+    }
+}
 
 // Resource production rate: units produced per minute per level.
 // Tune this single value to speed up or slow down all resource generation.
@@ -113,7 +124,7 @@ pub fn get_max_level(building_type: BuildingType) -> u8 {
         BuildingType::DiamondStorage => 3,
         BuildingType::GasStorage => 3,
         BuildingType::Barracks => 3,
-        BuildingType::ArmyCamp => 5,
+        BuildingType::ArmyCamp => 3,
         BuildingType::Cannon => 3,
         BuildingType::ArcherTower => 3,
         BuildingType::Wall => 3,

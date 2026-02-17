@@ -41,7 +41,7 @@ export function Header() {
               <span style={styles.resourceValue}>{formatNumber(gas)}</span>
             </div>
             <div style={styles.resource}>
-              <span style={{ ...styles.resourceIcon, backgroundColor: '#e67e22' }}>B</span>
+              <span style={{ ...styles.resourceIcon, backgroundColor: '#e67e22' }}>W</span>
               <span style={styles.resourceValue}>
                 {(player.freeBuilders ?? 0)}/{(player.totalBuilders ?? 1)}
               </span>

@@ -176,12 +176,6 @@ pub mod building_system {
                 player.town_hall_level = building.level;
             }
 
-            // Update max_builders if it's an army camp
-            if building.building_type == BuildingType::ArmyCamp {
-                let new_max = if building.level < 5 { building.level } else { 5 };
-                player.max_builders = new_max;
-            }
-
             world.write_model(@player);
 
             // Update army capacity if it's an army camp

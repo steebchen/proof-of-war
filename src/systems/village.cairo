@@ -50,7 +50,7 @@ pub mod village {
                 last_collected_at: current_time,
                 total_builders: 1,
                 free_builders: 1,
-                max_builders: 1,
+                max_builders: 5,
             };
             world.write_model(@player);
 

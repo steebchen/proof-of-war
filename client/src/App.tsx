@@ -94,7 +94,7 @@ function App() {
         buildingCount: 1,
         totalBuilders: 1,
         freeBuilders: 1,
-        maxBuilders: 1,
+        maxBuilders: 5,
       })
 
       const townHall: Building = {
