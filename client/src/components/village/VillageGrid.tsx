@@ -156,6 +156,13 @@ export function VillageGrid() {
   const gestureModeRef = useRef<'zoom' | 'pan' | null>(null)
   const lastTrackpadTimeRef = useRef(0) // remembers when trackpad was last detected
 
+  // Touch tracking for mobile drag/pinch
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const touchPanStartRef = useRef({ x: 0, y: 0 })
+  const touchDidDragRef = useRef(false)
+  const pinchStartDistRef = useRef(0)
+  const pinchStartZoomRef = useRef(1.0)
+
   // Load building sprites
   useEffect(() => {
     const entries = Object.entries(BUILDING_SPRITES)
@@ -653,6 +660,107 @@ export function VillageGrid() {
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', handleWheel)
   }, [canvasSize])
+
+  // Touch handlers for mobile drag-to-pan and pinch-to-zoom
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const getTouchDistance = (t1: Touch, t2: Touch) => {
+      const dx = t1.clientX - t2.clientX
+      const dy = t1.clientY - t2.clientY
+      return Math.sqrt(dx * dx + dy * dy)
+    }
+
+    const getTouchCenter = (t1: Touch, t2: Touch) => ({
+      x: (t1.clientX + t2.clientX) / 2,
+      y: (t1.clientY + t2.clientY) / 2,
+    })
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
+      if (e.touches.length === 1) {
+        const t = e.touches[0]
+        touchStartRef.current = { x: t.clientX, y: t.clientY }
+        touchPanStartRef.current = { ...panRef.current }
+        touchDidDragRef.current = false
+      } else if (e.touches.length === 2) {
+        // Pinch start
+        pinchStartDistRef.current = getTouchDistance(e.touches[0], e.touches[1])
+        pinchStartZoomRef.current = zoomRef.current
+        touchDidDragRef.current = true // prevent tap on release
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (e.touches.length === 1 && touchStartRef.current) {
+        const t = e.touches[0]
+        const dx = t.clientX - touchStartRef.current.x
+        const dy = t.clientY - touchStartRef.current.y
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+          touchDidDragRef.current = true
+          panRef.current = {
+            x: touchPanStartRef.current.x + dx,
+            y: touchPanStartRef.current.y + dy,
+          }
+          setCamTick((t) => t + 1)
+        }
+      } else if (e.touches.length === 2) {
+        // Pinch zoom
+        const dist = getTouchDistance(e.touches[0], e.touches[1])
+        const center = getTouchCenter(e.touches[0], e.touches[1])
+        const rect = canvas.getBoundingClientRect()
+        const cursorX = center.x - rect.left
+        const cursorY = center.y - rect.top
+
+        const baseScale = Math.min(canvasSize.w / ISO_CANVAS_W, canvasSize.h / ISO_CANVAS_H)
+        const oldZoom = zoomRef.current
+        const oldScale = baseScale * oldZoom
+        const oldTx = (canvasSize.w - ISO_CANVAS_W * oldScale) / 2 + panRef.current.x
+        const oldTy = (canvasSize.h - ISO_CANVAS_H * oldScale) / 2 + panRef.current.y
+
+        const logX = (cursorX - oldTx) / oldScale
+        const logY = (cursorY - oldTy) / oldScale
+
+        const scale = dist / pinchStartDistRef.current
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinchStartZoomRef.current * scale))
+        const newScale = baseScale * newZoom
+
+        panRef.current = {
+          x: cursorX - logX * newScale - (canvasSize.w - ISO_CANVAS_W * newScale) / 2,
+          y: cursorY - logY * newScale - (canvasSize.h - ISO_CANVAS_H * newScale) / 2,
+        }
+        zoomRef.current = newZoom
+        setCamTick((t) => t + 1)
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0 && !touchDidDragRef.current && touchStartRef.current) {
+        // Single tap — treat as click
+        const pos = clientToLogical(touchStartRef.current.x, touchStartRef.current.y)
+        const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
+        if (isPlacing && selectedBuildingType !== null) {
+          placeBuilding(gridX, gridY)
+        } else {
+          const building = getBuildingAt(gridX, gridY)
+          setSelectedBuilding(building?.buildingId ?? null)
+        }
+      }
+      touchStartRef.current = null
+    }
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false })
+    canvas.addEventListener('touchend', handleTouchEnd)
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart)
+      canvas.removeEventListener('touchmove', handleTouchMove)
+      canvas.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [canvasSize, isPlacing, selectedBuildingType, placeBuilding, getBuildingAt, clientToLogical])
 
   // Get selected building data
   const selectedBuildingData = selectedBuilding !== null
