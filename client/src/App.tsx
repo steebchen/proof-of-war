@@ -237,30 +237,23 @@ function App() {
         />
       )}
 
-      {/* Dev mode: spawn button always accessible */}
-      {isConnected && !player && !isFetchingPlayer && (
-        <button
-          style={styles.devSpawnBtn}
-          onClick={handleSpawn}
-          disabled={isSpawning}
-        >
-          {isSpawning ? 'Spawning...' : 'Dev: Spawn Village'}
-        </button>
-      )}
-      {isConnected && player && (
+      {/* Dev mode: spawn/respawn button */}
+      {isConnected && (
         <button
           style={styles.devSpawnBtn}
           onClick={async () => {
-            // Reset local state and re-spawn (works after Katana restart)
+            if (isSpawning) return
+            // Clear local state
             setPlayer(null)
             setBuildings([])
             setArmy(null)
             hasFetchedRef.current = false
+            // Try to spawn (will succeed on fresh Katana, fail with "already exists" otherwise)
             await handleSpawn()
           }}
           disabled={isSpawning}
         >
-          {isSpawning ? 'Spawning...' : 'Dev: Respawn'}
+          {isSpawning ? 'Spawning...' : player ? 'Dev: Respawn' : 'Dev: Spawn'}
         </button>
       )}
     </div>
@@ -324,18 +317,18 @@ const styles: Record<string, React.CSSProperties> = {
   },
   devSpawnBtn: {
     position: 'fixed',
-    bottom: '80px',
+    top: '56px',
     left: '16px',
-    padding: '8px 14px',
+    padding: '6px 12px',
     backgroundColor: '#e67e22',
     color: '#fff',
     border: '2px solid #d35400',
     borderRadius: '6px',
     cursor: 'pointer',
     fontWeight: 'bold',
-    fontSize: '12px',
+    fontSize: '11px',
     zIndex: 200,
-    opacity: 0.85,
+    opacity: 0.8,
   },
   spinner: {
     width: '40px',
