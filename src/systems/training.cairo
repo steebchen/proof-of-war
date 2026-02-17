@@ -5,6 +5,8 @@ use clash_prototype::models::troop::TroopType;
 pub trait ITraining<T> {
     fn train_troops(ref self: T, barracks_id: u32, troop_type: TroopType, quantity: u8);
     fn collect_trained_troops(ref self: T, barracks_id: u32);
+    fn train_builder(ref self: T, army_camp_id: u32);
+    fn collect_builder(ref self: T, army_camp_id: u32);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -35,8 +37,9 @@ pub mod training_system {
 
     use clash_prototype::models::player::Player;
     use clash_prototype::models::building::{Building, BuildingType};
-    use clash_prototype::models::army::{Army, TrainingQueue};
+    use clash_prototype::models::army::{Army, TrainingQueue, BuilderQueue};
     use clash_prototype::models::troop::{TroopType, get_troop_config};
+    use clash_prototype::utils::config::{BUILDER_TRAINING_TIME, BUILDER_TRAINING_COST};
 
     #[abi(embed_v0)]
     impl TrainingImpl of ITraining<ContractState> {
@@ -143,6 +146,69 @@ pub mod training_system {
                 troop_type: queue.troop_type,
                 quantity: queue.quantity,
             });
+        }
+
+        fn train_builder(ref self: ContractState, army_camp_id: u32) {
+            let mut world = self.world_default();
+            let player_address = get_caller_address();
+            let current_time = get_block_timestamp();
+
+            // Get player
+            let mut player: Player = world.read_model(player_address);
+            assert(player.town_hall_level > 0, 'Player not spawned');
+
+            // Verify building is an army camp
+            let camp: Building = world.read_model((player_address, army_camp_id));
+            assert(camp.level > 0, 'Building not found');
+            assert(camp.building_type == BuildingType::ArmyCamp, 'Not an army camp');
+            assert(!camp.is_upgrading, 'Camp is upgrading');
+
+            // Check builder limits
+            assert(player.total_builders < player.max_builders, 'Max builders reached');
+
+            // Check no active builder training
+            let existing: BuilderQueue = world.read_model(player_address);
+            assert(!existing.is_training, 'Already training builder');
+
+            // Check gas cost
+            assert(player.gas >= BUILDER_TRAINING_COST, 'Not enough gas');
+
+            // Deduct gas
+            player.gas -= BUILDER_TRAINING_COST;
+            world.write_model(@player);
+
+            // Create builder queue
+            let queue = BuilderQueue {
+                owner: player_address,
+                is_training: true,
+                finish_time: current_time + BUILDER_TRAINING_TIME,
+            };
+            world.write_model(@queue);
+        }
+
+        fn collect_builder(ref self: ContractState, army_camp_id: u32) {
+            let mut world = self.world_default();
+            let player_address = get_caller_address();
+            let current_time = get_block_timestamp();
+
+            // Get builder queue
+            let mut queue: BuilderQueue = world.read_model(player_address);
+            assert(queue.is_training, 'No builder training');
+            assert(current_time >= queue.finish_time, 'Training not finished');
+
+            // Update player
+            let mut player: Player = world.read_model(player_address);
+            player.total_builders += 1;
+            player.free_builders += 1;
+            world.write_model(@player);
+
+            // Clear queue
+            let empty_queue = BuilderQueue {
+                owner: player_address,
+                is_training: false,
+                finish_time: 0,
+            };
+            world.write_model(@empty_queue);
         }
     }
 

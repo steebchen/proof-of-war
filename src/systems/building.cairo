@@ -127,14 +127,18 @@ pub mod building_system {
             assert(!building.is_upgrading, 'Already upgrading');
             assert(building.level < get_max_level(building.building_type), 'Max level reached');
 
+            // Check free builder available
+            assert(player.free_builders > 0, 'No free builders');
+
             // Check upgrade resources (next level cost)
             let cost = get_building_cost(building.building_type, building.level + 1);
             assert(player.diamond >= cost.diamond, 'Not enough diamond');
             assert(player.gas >= cost.gas, 'Not enough gas');
 
-            // Deduct resources
+            // Deduct resources and assign builder
             player.diamond -= cost.diamond;
             player.gas -= cost.gas;
+            player.free_builders -= 1;
             world.write_model(@player);
 
             // Start upgrade
@@ -163,12 +167,22 @@ pub mod building_system {
             building.health = get_building_health(building.building_type, building.level);
             world.write_model(@building);
 
+            // Free the builder
+            let mut player: Player = world.read_model(player_address);
+            player.free_builders += 1;
+
             // Update town hall level in player if it's a town hall
             if building.building_type == BuildingType::TownHall {
-                let mut player: Player = world.read_model(player_address);
                 player.town_hall_level = building.level;
-                world.write_model(@player);
             }
+
+            // Update max_builders if it's an army camp
+            if building.building_type == BuildingType::ArmyCamp {
+                let new_max = if building.level < 5 { building.level } else { 5 };
+                player.max_builders = new_max;
+            }
+
+            world.write_model(@player);
 
             // Update army capacity if it's an army camp
             if building.building_type == BuildingType::ArmyCamp {

@@ -14,6 +14,9 @@ export interface Player {
   trophies: number
   townHallLevel: number
   buildingCount: number
+  totalBuilders: number
+  freeBuilders: number
+  maxBuilders: number
 }
 
 export interface Building {
@@ -37,6 +40,12 @@ export interface Army {
   maxCapacity: number
 }
 
+export interface BuilderQueue {
+  owner: string
+  isTraining: boolean
+  finishTime: bigint
+}
+
 // Subscription type from torii
 interface Subscription {
   free(): void
@@ -49,9 +58,11 @@ interface DojoContextType {
   player: Player | null
   buildings: Building[]
   army: Army | null
+  builderQueue: BuilderQueue | null
   setPlayer: (player: Player | null) => void
   setBuildings: (buildings: Building[]) => void
   setArmy: (army: Army | null) => void
+  setBuilderQueue: (queue: BuilderQueue | null) => void
   fetchPlayerData: (address: string) => Promise<boolean>
   fetchDefenderBuildings: (address: string) => Promise<Building[]>
   fetchBattleData: (battleId?: number) => Promise<number | null>
@@ -125,6 +136,9 @@ function transformPlayer(data: ClashSchemaType['clash']['Player'], address: stri
     trophies: parseInt(data.trophies || '0', 10),
     townHallLevel: parseInt(data.town_hall_level || '1', 10),
     buildingCount: parseInt(data.building_count || '0', 10),
+    totalBuilders: parseInt(data.total_builders || '1', 10),
+    freeBuilders: parseInt(data.free_builders || '1', 10),
+    maxBuilders: parseInt(data.max_builders || '1', 10),
   }
 }
 
@@ -140,6 +154,14 @@ function transformBuilding(data: ClashSchemaType['clash']['Building']): Building
     isUpgrading: data.is_upgrading ?? false,
     upgradeFinishTime: BigInt(data.upgrade_finish_time || '0'),
     lastCollectedAt: BigInt(data.last_collected_at || '0'),
+  }
+}
+
+function transformBuilderQueue(data: ClashSchemaType['clash']['BuilderQueue']): BuilderQueue {
+  return {
+    owner: data.owner,
+    isTraining: data.is_training ?? false,
+    finishTime: BigInt(data.finish_time || '0'),
   }
 }
 
@@ -161,6 +183,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<Player | null>(null)
   const [buildings, setBuildings] = useState<Building[]>([])
   const [army, setArmy] = useState<Army | null>(null)
+  const [builderQueue, setBuilderQueue] = useState<BuilderQueue | null>(null)
   const [isPlacing, setIsPlacing] = useState(false)
   const [selectedBuildingType, setSelectedBuildingType] = useState<number | null>(null)
   const subscriptionRef = useRef<Subscription | null>(null)
@@ -293,6 +316,26 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Fetch BuilderQueue
+      const builderQueueQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          KeysClause(
+            [MODELS.BuilderQueue],
+            [paddedAddress],
+            'FixedLen'
+          ).build()
+        )
+
+      const builderQueueResponse = await sdk.getEntities({ query: builderQueueQuery })
+      const builderQueueEntities = builderQueueResponse.getItems()
+      for (const entity of builderQueueEntities) {
+        const bqData = entity.models?.clash?.BuilderQueue
+        if (bqData) {
+          setBuilderQueue(transformBuilderQueue(bqData as ClashSchemaType['clash']['BuilderQueue']))
+          break
+        }
+      }
+
       // Set up subscriptions for real-time updates
       setupSubscriptions(address)
 
@@ -322,7 +365,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
       const subscriptionQuery = new ToriiQueryBuilder<ClashSchemaType>()
         .withClause(
           KeysClause(
-            [MODELS.Player, MODELS.Building, MODELS.Army],
+            [MODELS.Player, MODELS.Building, MODELS.Army, MODELS.BuilderQueue],
             [paddedAddress],
             'FixedLen'
           ).build()
@@ -363,6 +406,12 @@ export function DojoProvider({ children }: { children: ReactNode }) {
               const armyData = entity.models?.clash?.Army
               if (armyData) {
                 setArmy(transformArmy(armyData as ClashSchemaType['clash']['Army']))
+              }
+
+              // Handle BuilderQueue updates
+              const bqData = entity.models?.clash?.BuilderQueue
+              if (bqData) {
+                setBuilderQueue(transformBuilderQueue(bqData as ClashSchemaType['clash']['BuilderQueue']))
               }
             }
           }
@@ -479,9 +528,11 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         player,
         buildings,
         army,
+        builderQueue,
         setPlayer,
         setBuildings,
         setArmy,
+        setBuilderQueue,
         fetchPlayerData,
         fetchDefenderBuildings,
         fetchBattleData,

@@ -7,6 +7,10 @@ pub const GRID_SIZE: u8 = 40;
 pub const STARTING_DIAMOND: u64 = 2000;
 pub const STARTING_GAS: u64 = 1000;
 
+// Builder training
+pub const BUILDER_TRAINING_TIME: u64 = 120; // 2 minutes
+pub const BUILDER_TRAINING_COST: u64 = 150; // gas
+
 // Resource production rate: units produced per minute per level.
 // Tune this single value to speed up or slow down all resource generation.
 pub const RESOURCE_PRODUCTION_PER_MIN: u64 = 10;
@@ -109,7 +113,7 @@ pub fn get_max_level(building_type: BuildingType) -> u8 {
         BuildingType::DiamondStorage => 3,
         BuildingType::GasStorage => 3,
         BuildingType::Barracks => 3,
-        BuildingType::ArmyCamp => 3,
+        BuildingType::ArmyCamp => 5,
         BuildingType::Cannon => 3,
         BuildingType::ArcherTower => 3,
         BuildingType::Wall => 3,
@@ -125,7 +129,7 @@ pub fn get_max_building_count(building_type: BuildingType, town_hall_level: u8) 
         BuildingType::DiamondStorage => town_hall_level,
         BuildingType::GasStorage => town_hall_level,
         BuildingType::Barracks => 1 + (town_hall_level / 3),
-        BuildingType::ArmyCamp => 1 + (town_hall_level / 2),
+        BuildingType::ArmyCamp => 1,
         BuildingType::Cannon => town_hall_level,
         BuildingType::ArcherTower => if town_hall_level >= 2 { town_hall_level - 1 } else { 0 },
         BuildingType::Wall => town_hall_level * 25,

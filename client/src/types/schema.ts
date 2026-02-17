@@ -11,6 +11,9 @@ export type ClashSchemaType = {
       town_hall_level: string // u8 as string
       building_count: string // u32 as string
       last_collected_at: string // u64 as string
+      total_builders: string // u8 as string
+      free_builders: string // u8 as string
+      max_builders: string // u8 as string
     }
     Building: {
       owner: string
@@ -36,6 +39,11 @@ export type ClashSchemaType = {
       barracks_id: string // u32 as string
       troop_type: string // enum variant as string
       quantity: string // u8 as string
+      finish_time: string // u64 as string
+    }
+    BuilderQueue: {
+      owner: string
+      is_training: boolean
       finish_time: string // u64 as string
     }
     Battle: {
@@ -90,6 +98,7 @@ export const MODELS = {
   Building: 'clash-Building',
   Army: 'clash-Army',
   TrainingQueue: 'clash-TrainingQueue',
+  BuilderQueue: 'clash-BuilderQueue',
   Battle: 'clash-Battle',
   DeployedTroop: 'clash-DeployedTroop',
   BattleBuilding: 'clash-BattleBuilding',

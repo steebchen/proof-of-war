@@ -29,7 +29,7 @@ const MAX_LEVELS: Record<number, number> = {
   [BuildingType.DiamondStorage]: 3,
   [BuildingType.GasStorage]: 3,
   [BuildingType.Barracks]: 3,
-  [BuildingType.ArmyCamp]: 3,
+  [BuildingType.ArmyCamp]: 5,
   [BuildingType.Cannon]: 3,
   [BuildingType.ArcherTower]: 3,
   [BuildingType.Wall]: 3,
@@ -63,6 +63,8 @@ function getBuildingStats(buildingType: number, level: number): string {
       return `Stores ${1500 * level} gas`
     case BuildingType.TownHall:
       return `Stores ${1000 * level} each`
+    case BuildingType.ArmyCamp:
+      return `Builder slots: ${level} | Troop cap: ${20 * level}`
     default:
       return ''
   }
@@ -125,7 +127,7 @@ export function VillageGrid() {
     getBuildingAt,
   } = useBuildings()
   const { canAfford } = useResources()
-  const { setBuildings } = useDojo()
+  const { player, setBuildings, builderQueue, setBuilderQueue } = useDojo()
   const { account } = useAccount()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
@@ -495,6 +497,55 @@ export function VillageGrid() {
     }
   }, [account, pending, buildings, setBuildings])
 
+  // Train builder on-chain
+  const handleTrainBuilder = useCallback(async (armyCampId: number) => {
+    if (!account || pending) return
+    setPending(true)
+
+    // Optimistic update
+    setBuilderQueue({ owner: account.address, isTraining: true, finishTime: BigInt(Math.floor(Date.now() / 1000) + 120) })
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.trainingSystemAddress,
+          entrypoint: 'train_builder',
+          calldata: [armyCampId],
+        },
+      ], noFeeDetails)
+      console.log('Builder training started on-chain')
+    } catch (error) {
+      console.error('Failed to train builder:', error)
+      setBuilderQueue(null)
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending, setBuilderQueue])
+
+  // Collect builder on-chain
+  const handleCollectBuilder = useCallback(async (armyCampId: number) => {
+    if (!account || pending) return
+    setPending(true)
+
+    // Optimistic update
+    setBuilderQueue({ owner: account.address, isTraining: false, finishTime: BigInt(0) })
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.trainingSystemAddress,
+          entrypoint: 'collect_builder',
+          calldata: [armyCampId],
+        },
+      ], noFeeDetails)
+      console.log('Builder collected on-chain')
+    } catch (error) {
+      console.error('Failed to collect builder:', error)
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending, setBuilderQueue])
+
   // Redraw when dependencies change
   useEffect(() => {
     draw()
@@ -629,6 +680,11 @@ export function VillageGrid() {
           </h4>
           <p style={styles.stat}>Level: {selectedBuildingData.level}/{MAX_LEVELS[selectedBuildingData.buildingType] ?? 1}</p>
           <p style={styles.stat}>Health: {selectedBuildingData.health}</p>
+          {player && (
+            <p style={{ ...styles.stat, color: (player.freeBuilders > 0) ? '#4CAF50' : '#FF5722' }}>
+              Builders: {player.freeBuilders}/{player.totalBuilders}
+            </p>
+          )}
 
           {/* Building stats */}
           {getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level) && (
@@ -663,6 +719,8 @@ export function VillageGrid() {
             selectedBuildingData.level < (MAX_LEVELS[selectedBuildingData.buildingType] ?? 1) && (() => {
               const cost = getUpgradeCost(selectedBuildingData.buildingType, selectedBuildingData.level)
               const affordable = canAfford(cost.diamond, cost.gas)
+              const hasBuilder = (player?.freeBuilders ?? 0) > 0
+              const canUpgrade = affordable && hasBuilder
               const nextStats = getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
               const upgradeDuration = getUpgradeTime(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
 
@@ -680,16 +738,21 @@ export function VillageGrid() {
                       Next: {nextStats}
                     </p>
                   )}
+                  {selectedBuildingData.buildingType === BuildingType.ArmyCamp && (
+                    <p style={{ ...styles.stat, color: '#888', fontSize: '11px' }}>
+                      Next: +1 builder slot, +20 troop capacity
+                    </p>
+                  )}
                   <button
                     style={{
                       ...styles.upgradeBtn,
-                      opacity: affordable && !pending ? 1 : 0.5,
-                      cursor: affordable && !pending ? 'pointer' : 'not-allowed',
+                      opacity: canUpgrade && !pending ? 1 : 0.5,
+                      cursor: canUpgrade && !pending ? 'pointer' : 'not-allowed',
                     }}
-                    onClick={() => affordable && !pending && handleUpgrade(selectedBuildingData.buildingId)}
-                    disabled={!affordable || pending}
+                    onClick={() => canUpgrade && !pending && handleUpgrade(selectedBuildingData.buildingId)}
+                    disabled={!canUpgrade || pending}
                   >
-                    {!affordable ? 'Not enough resources' : pending ? 'Sending...' : `Upgrade to L${selectedBuildingData.level + 1}`}
+                    {!hasBuilder ? 'No free builders' : !affordable ? 'Not enough resources' : pending ? 'Sending...' : `Upgrade to L${selectedBuildingData.level + 1}`}
                   </button>
                 </div>
               )
@@ -700,6 +763,59 @@ export function VillageGrid() {
             selectedBuildingData.level >= (MAX_LEVELS[selectedBuildingData.buildingType] ?? 1) && (
               <p style={{ ...styles.stat, color: '#FFD700', fontWeight: 'bold' }}>Max Level</p>
             )}
+
+          {/* Army Camp builder training UI */}
+          {selectedBuildingData.buildingType === BuildingType.ArmyCamp &&
+            !selectedBuildingData.isUpgrading && player && (() => {
+              const canTrain = player.totalBuilders < player.maxBuilders
+              const isTraining = builderQueue?.isTraining ?? false
+              const trainingFinishTime = builderQueue?.finishTime ?? BigInt(0)
+              const trainingRemaining = isTraining ? getUpgradeRemaining(trainingFinishTime, now) : 0
+              const trainingReady = isTraining && trainingRemaining <= 0
+              const canAffordBuilder = (player.gas ?? BigInt(0)) >= BigInt(150)
+
+              return (
+                <div style={styles.upgradeSection}>
+                  <p style={{ ...styles.stat, fontWeight: 'bold' }}>
+                    Builders: {player.totalBuilders}/{player.maxBuilders}
+                  </p>
+
+                  {isTraining && !trainingReady && (
+                    <p style={{ ...styles.stat, color: '#FFA500' }}>
+                      Training builder... {formatCountdown(trainingRemaining)}
+                    </p>
+                  )}
+
+                  {trainingReady && (
+                    <button
+                      style={{ ...styles.upgradeBtn, backgroundColor: '#27ae60' }}
+                      onClick={() => handleCollectBuilder(selectedBuildingData.buildingId)}
+                      disabled={pending}
+                    >
+                      {pending ? 'Collecting...' : 'Collect Builder'}
+                    </button>
+                  )}
+
+                  {!isTraining && canTrain && (
+                    <button
+                      style={{
+                        ...styles.upgradeBtn,
+                        opacity: canAffordBuilder && !pending ? 1 : 0.5,
+                        cursor: canAffordBuilder && !pending ? 'pointer' : 'not-allowed',
+                      }}
+                      onClick={() => canAffordBuilder && !pending && handleTrainBuilder(selectedBuildingData.buildingId)}
+                      disabled={!canAffordBuilder || pending}
+                    >
+                      {!canAffordBuilder ? 'Not enough gas' : pending ? 'Sending...' : 'Train Builder (150 gas, 2m)'}
+                    </button>
+                  )}
+
+                  {!isTraining && !canTrain && (
+                    <p style={{ ...styles.stat, color: '#FFD700' }}>All builder slots filled</p>
+                  )}
+                </div>
+              )
+            })()}
         </div>
       )}
     </div>

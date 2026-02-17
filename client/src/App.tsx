@@ -92,6 +92,9 @@ function App() {
         trophies: 0,
         townHallLevel: 1,
         buildingCount: 1,
+        totalBuilders: 1,
+        freeBuilders: 1,
+        maxBuilders: 1,
       })
 
       const townHall: Building = {

@@ -23,3 +23,12 @@ pub struct TrainingQueue {
     pub quantity: u8,
     pub finish_time: u64,
 }
+
+#[derive(Clone, Drop, Serde)]
+#[dojo::model]
+pub struct BuilderQueue {
+    #[key]
+    pub owner: ContractAddress,
+    pub is_training: bool,
+    pub finish_time: u64,
+}

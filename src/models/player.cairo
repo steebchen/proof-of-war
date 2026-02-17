@@ -12,4 +12,7 @@ pub struct Player {
     pub town_hall_level: u8,
     pub building_count: u32,
     pub last_collected_at: u64,
+    pub total_builders: u8,
+    pub free_builders: u8,
+    pub max_builders: u8,
 }
