@@ -70,8 +70,10 @@ function getBuildingStats(buildingType: number, level: number): string {
 
 function formatCountdown(seconds: number): string {
   if (seconds <= 0) return 'Done!'
-  const m = Math.floor(seconds / 60)
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
   const s = seconds % 60
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`
   if (m > 0) return `${m}m ${s}s`
   return `${s}s`
 }
@@ -662,6 +664,7 @@ export function VillageGrid() {
               const cost = getUpgradeCost(selectedBuildingData.buildingType, selectedBuildingData.level)
               const affordable = canAfford(cost.diamond, cost.gas)
               const nextStats = getBuildingStats(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
+              const upgradeDuration = getUpgradeTime(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
 
               return (
                 <div style={styles.upgradeSection}>
@@ -669,6 +672,9 @@ export function VillageGrid() {
                     {cost.diamond > 0 && <span style={{ color: '#FFD700' }}>{cost.diamond} diamond</span>}
                     {cost.gas > 0 && <span style={{ color: '#DA70D6' }}>{cost.gas} gas</span>}
                   </div>
+                  <p style={{ ...styles.stat, color: '#888', fontSize: '11px' }}>
+                    Duration: {formatCountdown(upgradeDuration)}
+                  </p>
                   {nextStats && (
                     <p style={{ ...styles.stat, color: '#888', fontSize: '11px' }}>
                       Next: {nextStats}
