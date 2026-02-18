@@ -158,6 +158,7 @@ export function VillageGrid() {
     isPlacing,
     selectedBuildingType,
     placeBuilding,
+    cancelPlacing,
     checkCollision,
     getBuildingAt,
     isMoving,
@@ -961,16 +962,21 @@ export function VillageGrid() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isMoving) {
+        if (confirmRemove !== null) {
+          setConfirmRemove(null)
+        } else if (isMoving) {
           cancelMoving()
+        } else if (isPlacing) {
+          cancelPlacing()
+        } else {
+          setSelectedBuilding(null)
         }
-        setSelectedBuilding(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isMoving, cancelMoving])
+  }, [isMoving, cancelMoving, isPlacing, cancelPlacing, confirmRemove])
 
   // Wheel handler: mouse wheel → zoom, trackpad two-finger → pan, trackpad pinch → zoom
   // Detection: default to zoom (preserves mouse wheel). If any event in a gesture
