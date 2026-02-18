@@ -929,6 +929,28 @@ export function VillageGrid() {
     }
   }, [account, pending, trainingQueues, setTrainingQueues])
 
+  // Remove building on-chain
+  const handleRemoveBuilding = useCallback(async (buildingId: number) => {
+    if (!account || pending) return
+    setPending(true)
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'remove_building',
+          calldata: [buildingId],
+        },
+      ], noFeeDetails)
+      console.log('Building removed on-chain')
+      setSelectedBuilding(null)
+    } catch (error) {
+      console.error('Failed to remove building:', error)
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending])
+
   // Redraw when dependencies change
   useEffect(() => {
     draw()
@@ -1400,18 +1422,27 @@ export function VillageGrid() {
               )
             })()}
 
-          {/* Move button - only for fully built, non-upgrading buildings (except TownHall) */}
+          {/* Move & Remove buttons - only for fully built, non-upgrading buildings (except TownHall) */}
           {selectedBuildingData.level > 0 && !selectedBuildingData.isUpgrading &&
             selectedBuildingData.buildingType !== BuildingType.TownHall && (
-              <button
-                style={styles.moveBtn}
-                onClick={() => {
-                  startMoving(selectedBuildingData.buildingId)
-                  setSelectedBuilding(null)
-                }}
-              >
-                Move Building
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  style={styles.moveBtn}
+                  onClick={() => {
+                    startMoving(selectedBuildingData.buildingId)
+                    setSelectedBuilding(null)
+                  }}
+                >
+                  Move
+                </button>
+                <button
+                  style={{ ...styles.moveBtn, backgroundColor: '#e74c3c' }}
+                  onClick={() => !pending && handleRemoveBuilding(selectedBuildingData.buildingId)}
+                  disabled={pending}
+                >
+                  {pending ? '...' : 'Remove (50% refund)'}
+                </button>
+              </div>
             )}
         </div>
       )}

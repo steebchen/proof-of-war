@@ -7,6 +7,7 @@ pub trait IBuilding<T> {
     fn upgrade_building(ref self: T, building_id: u32);
     fn finish_upgrade(ref self: T, building_id: u32);
     fn move_building(ref self: T, building_id: u32, new_x: u8, new_y: u8);
+    fn remove_building(ref self: T, building_id: u32);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -29,9 +30,20 @@ pub struct BuildingUpgraded {
     pub new_level: u8,
 }
 
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
+pub struct BuildingRemoved {
+    #[key]
+    pub owner: ContractAddress,
+    pub building_id: u32,
+    pub building_type: BuildingType,
+    pub refund_diamond: u64,
+    pub refund_gas: u64,
+}
+
 #[dojo::contract]
 pub mod building_system {
-    use super::{IBuilding, BuildingPlaced, BuildingUpgraded};
+    use super::{IBuilding, BuildingPlaced, BuildingUpgraded, BuildingRemoved};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::ModelStorage;
     use dojo::event::EventStorage;
@@ -215,6 +227,59 @@ pub mod building_system {
             building.x = new_x;
             building.y = new_y;
             world.write_model(@building);
+        }
+
+        fn remove_building(ref self: ContractState, building_id: u32) {
+            let mut world = self.world_default();
+            let player_address = get_caller_address();
+
+            // Get player and building
+            let mut player: Player = world.read_model(player_address);
+            let mut building: Building = world.read_model((player_address, building_id));
+
+            assert(building.level > 0, 'Building not found');
+            assert(!building.is_upgrading, 'Cannot remove while upgrading');
+            assert(building.building_type != BuildingType::TownHall, 'Cannot remove town hall');
+
+            // Calculate refund (50% of total invested cost for current level)
+            let cost = get_building_cost(building.building_type, 1);
+            let refund_diamond = cost.diamond / 2;
+            let refund_gas = cost.gas / 2;
+
+            // Refund resources
+            player.diamond += refund_diamond;
+            player.gas += refund_gas;
+            world.write_model(@player);
+
+            // Reduce army capacity if removing army camp
+            if building.building_type == BuildingType::ArmyCamp {
+                let mut army: Army = world.read_model(player_address);
+                let camp_capacity = get_army_camp_capacity(building.level);
+                if army.max_capacity >= camp_capacity {
+                    army.max_capacity -= camp_capacity;
+                } else {
+                    army.max_capacity = 0;
+                }
+                world.write_model(@army);
+            }
+
+            let removed_type = building.building_type;
+
+            // Soft-delete: set level to 0 and clear data
+            building.level = 0;
+            building.health = 0;
+            building.is_upgrading = false;
+            building.upgrade_finish_time = 0;
+            world.write_model(@building);
+
+            // Emit event
+            world.emit_event(@BuildingRemoved {
+                owner: player_address,
+                building_id,
+                building_type: removed_type,
+                refund_diamond,
+                refund_gas,
+            });
         }
     }
 

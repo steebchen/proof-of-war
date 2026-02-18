@@ -13,7 +13,7 @@ use clash_prototype::models::battle::{
     m_Battle, m_DeployedTroop, m_BattleBuilding, m_BattleCounter,
 };
 use clash_prototype::systems::village::{village, IVillageDispatcher, IVillageDispatcherTrait, e_PlayerSpawned};
-use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded};
+use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded, e_BuildingRemoved};
 use clash_prototype::systems::training::{training_system, ITrainingDispatcher, ITrainingDispatcherTrait, e_TroopsTrainingStarted, e_TroopsCollected};
 use clash_prototype::systems::resource::{resource_system, IResourceDispatcher, IResourceDispatcherTrait, e_ResourcesCollected};
 use clash_prototype::systems::combat::{combat_system, e_BattleStarted, e_TroopDeployed, e_BattleEnded};
@@ -37,6 +37,7 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Event(e_PlayerSpawned::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingPlaced::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingUpgraded::TEST_CLASS_HASH),
+            TestResource::Event(e_BuildingRemoved::TEST_CLASS_HASH),
             TestResource::Event(e_TroopsTrainingStarted::TEST_CLASS_HASH),
             TestResource::Event(e_TroopsCollected::TEST_CLASS_HASH),
             TestResource::Event(e_ResourcesCollected::TEST_CLASS_HASH),
@@ -697,4 +698,66 @@ fn test_loot_protection() {
     // Even if 100% destruction, max loot = 300 diamond, so defender keeps >= 1700
     assert(defender_player.diamond >= 500, 'Diamond should be protected');
     assert(defender_player.gas >= 500, 'Gas should be protected');
+}
+
+#[test]
+fn test_remove_building() {
+    let player: ContractAddress = 'player'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    // Spawn player
+    starknet::testing::set_contract_address(player);
+    starknet::testing::set_account_contract_address(player);
+    village_dispatcher.spawn('Player');
+
+    // Place and finish a diamond mine
+    building_dispatcher.place_building(BuildingType::DiamondMine, 5, 5);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    let player_before: Player = world.read_model(player);
+    let diamond_before = player_before.diamond;
+
+    // Remove the building
+    building_dispatcher.remove_building(2);
+
+    // Check building is soft-deleted (level 0)
+    let building: Building = world.read_model((player, 2_u32));
+    assert(building.level == 0, 'Building should be removed');
+
+    // Check refund received (50% of diamond mine cost = 150/2 = 75)
+    let player_after: Player = world.read_model(player);
+    assert(player_after.diamond == diamond_before + 75, 'Should get 50% refund');
+}
+
+#[test]
+#[should_panic(expected: ('Cannot remove town hall', 'ENTRYPOINT_FAILED'))]
+fn test_cannot_remove_town_hall() {
+    let player: ContractAddress = 'player'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    starknet::testing::set_contract_address(player);
+    starknet::testing::set_account_contract_address(player);
+    village_dispatcher.spawn('Player');
+
+    // Try to remove town hall (building_id 1)
+    building_dispatcher.remove_building(1);
 }
