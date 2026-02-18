@@ -3,7 +3,6 @@ use starknet::ContractAddress;
 #[starknet::interface]
 pub trait IVillage<T> {
     fn spawn(ref self: T, username: felt252);
-    fn despawn(ref self: T);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -23,8 +22,7 @@ pub mod village {
 
     use clash_prototype::models::player::Player;
     use clash_prototype::models::building::{Building, BuildingType};
-    use clash_prototype::models::army::{Army, TrainingQueue, BuilderQueue};
-    use clash_prototype::models::troop::TroopType;
+    use clash_prototype::models::army::Army;
     use clash_prototype::utils::config::{
         STARTING_DIAMOND, STARTING_GAS, get_building_health
     };
@@ -91,85 +89,6 @@ pub mod village {
             });
         }
 
-        fn despawn(ref self: ContractState) {
-            let mut world = self.world_default();
-            let player_address = get_caller_address();
-
-            // Get player
-            let player: Player = world.read_model(player_address);
-            assert(player.town_hall_level > 0, 'Player not spawned');
-
-            // Delete all buildings and their training queues
-            let mut i: u32 = 1;
-            loop {
-                if i > player.building_count {
-                    break;
-                }
-
-                let building: Building = world.read_model((player_address, i));
-
-                // Clear training queue if this was a barracks
-                if building.building_type == BuildingType::Barracks {
-                    let empty_queue = TrainingQueue {
-                        owner: player_address,
-                        barracks_id: i,
-                        troop_type: TroopType::Barbarian,
-                        quantity: 0,
-                        finish_time: 0,
-                    };
-                    world.write_model(@empty_queue);
-                }
-
-                let empty_building = Building {
-                    owner: player_address,
-                    building_id: i,
-                    building_type: BuildingType::TownHall,
-                    level: 0,
-                    x: 0,
-                    y: 0,
-                    health: 0,
-                    is_upgrading: false,
-                    upgrade_finish_time: 0,
-                    last_collected_at: 0,
-                };
-                world.write_model(@empty_building);
-                i += 1;
-            };
-
-            // Clear builder queue
-            let empty_builder_queue = BuilderQueue {
-                owner: player_address,
-                is_training: false,
-                finish_time: 0,
-            };
-            world.write_model(@empty_builder_queue);
-
-            // Reset player
-            let empty_player = Player {
-                address: player_address,
-                username: 0,
-                diamond: 0,
-                gas: 0,
-                trophies: 0,
-                town_hall_level: 0,
-                building_count: 0,
-                last_collected_at: 0,
-                total_builders: 0,
-                free_builders: 0,
-                max_builders: 0,
-            };
-            world.write_model(@empty_player);
-
-            // Reset army
-            let empty_army = Army {
-                owner: player_address,
-                barbarians: 0,
-                archers: 0,
-                total_space_used: 0,
-                max_capacity: 0,
-            };
-            world.write_model(@empty_army);
-        }
     }
 
     #[generate_trait]

@@ -394,42 +394,6 @@ fn test_spawn_empty_username() {
 }
 
 #[test]
-fn test_despawn_clears_all_state() {
-    let caller: ContractAddress = 'player1'.try_into().unwrap();
-    let ndef = namespace_def();
-
-    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
-    world.sync_perms_and_inits(contract_defs());
-
-    let (village_address, _) = world.dns(@"village").unwrap();
-    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
-
-    let (training_address, _) = world.dns(@"training_system").unwrap();
-    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
-
-    starknet::testing::set_contract_address(caller);
-    starknet::testing::set_account_contract_address(caller);
-
-    village_dispatcher.spawn('TestPlayer');
-
-    // Train a worker to create builder queue state
-    training_dispatcher.train_worker();
-
-    // Despawn
-    village_dispatcher.despawn();
-
-    // Verify all state is cleared
-    let player: Player = world.read_model(caller);
-    assert(player.town_hall_level == 0, 'Player should be cleared');
-
-    let army: Army = world.read_model(caller);
-    assert(army.max_capacity == 0, 'Army should be cleared');
-
-    let builder_queue: BuilderQueue = world.read_model(caller);
-    assert(!builder_queue.is_training, 'Builder queue should clear');
-}
-
-#[test]
 fn test_move_building() {
     let caller: ContractAddress = 'player1'.try_into().unwrap();
     let ndef = namespace_def();
