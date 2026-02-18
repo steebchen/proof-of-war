@@ -7,6 +7,7 @@ import { VillageGrid } from './components/village/VillageGrid'
 import { TrainPanel } from './components/army/TrainPanel'
 import { AttackScreen } from './components/attack/AttackScreen'
 import { BattleResult } from './components/attack/BattleResult'
+import { Leaderboard } from './components/layout/Leaderboard'
 import { useAttack } from './hooks/useAttack'
 import { dojoConfig, NO_FEE_DETAILS } from './config/dojoConfig'
 
@@ -23,6 +24,7 @@ function App() {
   } = useDojo()
   const [showArmy, setShowArmy] = useState(false)
   const [showAttack, setShowAttack] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [isSpawning, setIsSpawning] = useState(false)
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false)
   const hasFetchedRef = useRef(false)
@@ -213,10 +215,13 @@ function App() {
         <BottomBar
           onOpenArmy={() => setShowArmy(true)}
           onOpenAttack={() => setShowAttack(true)}
+          onOpenLeaderboard={() => setShowLeaderboard(true)}
         />
       )}
 
       {showArmy && <TrainPanel onClose={() => setShowArmy(false)} />}
+
+      {showLeaderboard && <Leaderboard onClose={() => setShowLeaderboard(false)} />}
 
       {showAttack && (
         <AttackScreen

@@ -7,9 +7,10 @@ import { getBuildingLimits } from '../../utils/buildingLimits'
 interface BottomBarProps {
   onOpenArmy: () => void
   onOpenAttack: () => void
+  onOpenLeaderboard: () => void
 }
 
-export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
+export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard }: BottomBarProps) {
   const { isPlacing, selectedBuildingType, startPlacing, cancelPlacing } = useBuildings()
   const { diamond, gas, canAfford } = useResources()
   const { player, buildings } = useDojo()
@@ -112,6 +113,9 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
           </button>
           <button style={{ ...styles.actionBtn, backgroundColor: '#e74c3c' }} onClick={onOpenAttack}>
             Attack
+          </button>
+          <button style={{ ...styles.actionBtn, backgroundColor: '#f39c12' }} onClick={onOpenLeaderboard}>
+            Ranks
           </button>
         </div>
       </div>
