@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react'
 import { useAccount } from '@starknet-react/core'
 import { useDojo, Player } from '../../providers/DojoProvider'
 
+function getTrophyTier(trophies: number): { name: string; color: string } {
+  if (trophies >= 600) return { name: 'Diamond', color: '#b9f2ff' }
+  if (trophies >= 300) return { name: 'Gold', color: '#FFD700' }
+  if (trophies >= 100) return { name: 'Silver', color: '#C0C0C0' }
+  return { name: 'Bronze', color: '#CD7F32' }
+}
+
 interface LeaderboardProps {
   onClose: () => void
 }
@@ -73,8 +80,21 @@ export function Leaderboard({ onClose }: LeaderboardProps) {
                     ...styles.colTrophies,
                     color: '#FFD700',
                     fontWeight: 'bold',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px',
                   }}>
                     {p.trophies}
+                    <span style={{
+                      fontSize: '9px',
+                      color: getTrophyTier(p.trophies).color,
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      {getTrophyTier(p.trophies).name}
+                    </span>
                   </span>
                   <span style={styles.colTH}>{p.townHallLevel}</span>
                 </div>
