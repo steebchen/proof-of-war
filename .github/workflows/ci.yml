@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dojo
+        run: |
+          curl -L https://install.dojoengine.org | bash
+          /home/runner/.dojo/bin/dojoup -v v1.8.6
+
+      - name: Build
+        run: /home/runner/.dojo/bin/sozo build
+
+      - name: Test
+        run: /home/runner/.dojo/bin/sozo test
