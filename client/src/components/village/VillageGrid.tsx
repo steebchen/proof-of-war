@@ -114,6 +114,27 @@ function getWorkerTrainingTime(totalWorkers: number): number {
   }
 }
 
+function drawLabelWithBg(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  color: string,
+) {
+  ctx.font = 'bold 9px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'top'
+  const metrics = ctx.measureText(text)
+  const pw = metrics.width + 8
+  const ph = 13
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+  ctx.beginPath()
+  ctx.roundRect(x - pw / 2, y, pw, ph, 3)
+  ctx.fill()
+  ctx.fillStyle = color
+  ctx.fillText(text, x, y + 2)
+}
+
 function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
   return Math.max(0, Number(upgradeFinishTime) - now)
 }
@@ -302,15 +323,7 @@ export function VillageGrid() {
 
         if (remaining > 0) {
           // Countdown text on top face
-          ctx.fillStyle = '#fff'
-          ctx.font = 'bold 9px sans-serif'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(
-            formatCountdown(remaining),
-            topCenter.x,
-            topCenter.y + 10
-          )
+          drawLabelWithBg(ctx, formatCountdown(remaining), topCenter.x, topCenter.y + 6, '#fff')
         } else {
           // Ready indicator - green pulsing circle with checkmark above building
           const indicatorX = topCenter.x
@@ -337,11 +350,7 @@ export function VillageGrid() {
           ctx.stroke()
 
           // "Ready!" text below the circle
-          ctx.fillStyle = '#27ae60'
-          ctx.font = 'bold 9px sans-serif'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'top'
-          ctx.fillText('Ready!', topCenter.x, topCenter.y + 6)
+          drawLabelWithBg(ctx, 'Ready!', topCenter.x, topCenter.y + 6, '#27ae60')
         }
       }
     }
@@ -384,10 +393,7 @@ export function VillageGrid() {
           ctx.textBaseline = 'middle'
           ctx.fillText('W', indicatorX, indicatorY)
 
-          ctx.fillStyle = '#3498db'
-          ctx.font = 'bold 9px sans-serif'
-          ctx.textBaseline = 'top'
-          ctx.fillText('Worker!', topCenter.x, topCenter.y + 6)
+          drawLabelWithBg(ctx, 'Worker!', topCenter.x, topCenter.y + 6, '#3498db')
         } else {
           // In progress - orange circle with countdown
           const radius = 10
@@ -406,10 +412,7 @@ export function VillageGrid() {
           ctx.textBaseline = 'middle'
           ctx.fillText('W', indicatorX, indicatorY)
 
-          ctx.fillStyle = '#FFA500'
-          ctx.font = 'bold 9px sans-serif'
-          ctx.textBaseline = 'top'
-          ctx.fillText(formatCountdown(workerRemaining), topCenter.x, topCenter.y + 6)
+          drawLabelWithBg(ctx, formatCountdown(workerRemaining), topCenter.x, topCenter.y + 6, '#FFA500')
         }
       }
     }
