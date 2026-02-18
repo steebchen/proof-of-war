@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useDojo, Building } from '../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
-import { BUILDING_SIZES } from '../utils/constants'
+import { BUILDING_SIZES, GRID_SIZE } from '../utils/constants'
 import { dojoConfig, NO_FEE_DETAILS, BUILD_TIMES } from '../config/dojoConfig'
 import { canBuildMore } from '../utils/buildingLimits'
 
@@ -13,6 +13,10 @@ export function useBuildings() {
     setIsPlacing,
     selectedBuildingType,
     setSelectedBuildingType,
+    isMoving,
+    setIsMoving,
+    movingBuildingId,
+    setMovingBuildingId,
     player,
     setPlayer
   } = useDojo()
@@ -62,7 +66,7 @@ export function useBuildings() {
     const size = BUILDING_SIZES[selectedBuildingType] || { width: 1, height: 1 }
 
     // Check bounds
-    if (x + size.width > 40 || y + size.height > 40) {
+    if (x < 0 || y < 0 || x + size.width > GRID_SIZE || y + size.height > GRID_SIZE) {
       console.error('Out of bounds')
       return false
     }
@@ -136,6 +140,63 @@ export function useBuildings() {
     return undefined
   }, [buildings])
 
+  const startMoving = useCallback((buildingId: number) => {
+    cancelPlacing()
+    setMovingBuildingId(buildingId)
+    setIsMoving(true)
+  }, [cancelPlacing, setMovingBuildingId, setIsMoving])
+
+  const cancelMoving = useCallback(() => {
+    setMovingBuildingId(null)
+    setIsMoving(false)
+  }, [setMovingBuildingId, setIsMoving])
+
+  const moveBuilding = useCallback(async (newX: number, newY: number) => {
+    if (!account || movingBuildingId === null) return false
+
+    const building = buildings.find(b => b.buildingId === movingBuildingId)
+    if (!building) return false
+
+    const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
+
+    // Check bounds
+    if (newX < 0 || newY < 0 || newX + size.width > GRID_SIZE || newY + size.height > GRID_SIZE) {
+      console.error('Out of bounds')
+      return false
+    }
+
+    // Check collision (exclude self)
+    if (checkCollision(newX, newY, size.width, size.height, movingBuildingId)) {
+      console.error('Building collision')
+      return false
+    }
+
+    // Optimistic update
+    const oldBuildings = buildings
+    setBuildings(buildings.map(b =>
+      b.buildingId === movingBuildingId ? { ...b, x: newX, y: newY } : b
+    ))
+    cancelMoving()
+
+    // Call contract
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'move_building',
+          calldata: [movingBuildingId, newX, newY],
+        },
+      ], NO_FEE_DETAILS)
+      console.log('Building moved on-chain successfully')
+    } catch (error) {
+      console.error('Failed to move building on-chain:', error)
+      setBuildings(oldBuildings)
+      return false
+    }
+
+    return true
+  }, [account, movingBuildingId, buildings, checkCollision, setBuildings, cancelMoving])
+
   return {
     buildings,
     isPlacing,
@@ -145,5 +206,10 @@ export function useBuildings() {
     placeBuilding,
     checkCollision,
     getBuildingAt,
+    isMoving,
+    movingBuildingId,
+    startMoving,
+    cancelMoving,
+    moveBuilding,
   }
 }

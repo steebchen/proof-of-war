@@ -72,6 +72,11 @@ interface DojoContextType {
   selectedBuildingType: number | null
   setIsPlacing: (isPlacing: boolean) => void
   setSelectedBuildingType: (type: number | null) => void
+  // Building move state
+  isMoving: boolean
+  movingBuildingId: number | null
+  setIsMoving: (isMoving: boolean) => void
+  setMovingBuildingId: (id: number | null) => void
 }
 
 const DojoContext = createContext<DojoContextType | null>(null)
@@ -186,6 +191,8 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   const [builderQueue, setBuilderQueue] = useState<BuilderQueue | null>(null)
   const [isPlacing, setIsPlacing] = useState(false)
   const [selectedBuildingType, setSelectedBuildingType] = useState<number | null>(null)
+  const [isMoving, setIsMoving] = useState(false)
+  const [movingBuildingId, setMovingBuildingId] = useState<number | null>(null)
   const subscriptionRef = useRef<Subscription | null>(null)
 
   // Initialize SDK
@@ -563,6 +570,10 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         selectedBuildingType,
         setIsPlacing,
         setSelectedBuildingType,
+        isMoving,
+        movingBuildingId,
+        setIsMoving,
+        setMovingBuildingId,
       }}
     >
       {children}

@@ -1,4 +1,4 @@
-import { BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
+import { BuildingType, BUILDING_INFO, BUILDING_SPRITES } from '../../config/dojoConfig'
 import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
 import { useDojo } from '../../providers/DojoProvider'
@@ -57,7 +57,7 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
                 <button
                   style={{
                     ...styles.buildingBtn,
-                    backgroundColor: building.color,
+                    backgroundColor: BUILDING_SPRITES[building.type] ? 'rgba(0,0,0,0.3)' : building.color,
                     opacity: isDisabled ? 0.5 : 1,
                     border: isSelected ? '3px solid #fff' : '3px solid transparent',
                     cursor: isDisabled ? 'not-allowed' : 'pointer',
@@ -65,7 +65,15 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
                   onClick={() => !isDisabled && (isSelected ? cancelPlacing() : startPlacing(building.type))}
                   disabled={isDisabled}
                 >
-                  <span style={styles.buildingName}>{building.name.slice(0, 2)}</span>
+                  {BUILDING_SPRITES[building.type] ? (
+                    <img
+                      src={BUILDING_SPRITES[building.type]}
+                      alt={building.name}
+                      style={styles.buildingSprite}
+                    />
+                  ) : (
+                    <span style={styles.buildingName}>{building.name.slice(0, 2)}</span>
+                  )}
                 </button>
                 {/* Cost display */}
                 <div style={styles.costRow}>
@@ -162,6 +170,12 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     transition: 'transform 0.1s, opacity 0.1s',
   },
+  buildingSprite: {
+    width: '40px',
+    height: '40px',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+  } as React.CSSProperties,
   buildingName: {
     color: '#fff',
     fontWeight: 'bold',

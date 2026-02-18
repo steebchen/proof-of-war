@@ -3,7 +3,7 @@ import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
 import { useDojo } from '../../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
-import { dojoConfig, BuildingType, BUILDING_INFO, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
+import { dojoConfig, BuildingType, BUILDING_INFO, BUILDING_SPRITES, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -122,17 +122,6 @@ function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
   return Math.max(0, finish - now)
 }
 
-// Building sprite map (building type → image path in public/)
-const BUILDING_SPRITES: Partial<Record<number, string>> = {
-  [BuildingType.TownHall]: '/buildings/command-center.png',
-  [BuildingType.DiamondMine]: '/buildings/diamond-refinery.png',
-  [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
-  [BuildingType.GasCollector]: '/buildings/gas-extractor.png',
-  [BuildingType.GasStorage]: '/buildings/gas-storage.png',
-  [BuildingType.Cannon]: '/buildings/cannon.png',
-  [BuildingType.ArmyCamp]: '/buildings/camp.png',
-  [BuildingType.Barracks]: '/buildings/barracks.png',
-}
 
 export function VillageGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -144,6 +133,11 @@ export function VillageGrid() {
     placeBuilding,
     checkCollision,
     getBuildingAt,
+    isMoving,
+    movingBuildingId,
+    startMoving,
+    cancelMoving,
+    moveBuilding,
   } = useBuildings()
   const { canAfford } = useResources()
   const { player, setPlayer, setBuildings, builderQueue, setBuilderQueue } = useDojo()
@@ -431,50 +425,136 @@ export function VillageGrid() {
       ctx.fillStyle = previewColor
       ctx.fill()
 
-      // Semi-transparent building box preview
-      const baseColor = BUILDING_COLORS[selectedBuildingType] || '#888'
-      const bh = BUILDING_HEIGHTS[selectedBuildingType] ?? 14
+      // Semi-transparent building sprite or box preview
+      const sprite = spritesRef.current[selectedBuildingType]
+      ctx.globalAlpha = 0.6
 
-      const topR = { x: topG.x, y: topG.y - bh }
-      const rightR = { x: rightG.x, y: rightG.y - bh }
-      const bottomR = { x: bottomG.x, y: bottomG.y - bh }
-      const leftR = { x: leftG.x, y: leftG.y - bh }
+      if (sprite) {
+        const diamondW = rightG.x - leftG.x
+        const spriteW = diamondW
+        const spriteH = spriteW
+        const cx = (leftG.x + rightG.x) / 2
+        const drawX = cx - spriteW / 2
+        const drawY = bottomG.y - spriteH * 0.88
+        ctx.drawImage(sprite, drawX, drawY, spriteW, spriteH)
+      } else {
+        const baseColor = BUILDING_COLORS[selectedBuildingType] || '#888'
+        const bh = BUILDING_HEIGHTS[selectedBuildingType] ?? 14
+        const topR = { x: topG.x, y: topG.y - bh }
+        const rightR = { x: rightG.x, y: rightG.y - bh }
+        const bottomR = { x: bottomG.x, y: bottomG.y - bh }
+        const leftR = { x: leftG.x, y: leftG.y - bh }
 
-      ctx.globalAlpha = 0.5
+        ctx.beginPath()
+        ctx.moveTo(leftG.x, leftG.y)
+        ctx.lineTo(bottomG.x, bottomG.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(leftR.x, leftR.y)
+        ctx.closePath()
+        ctx.fillStyle = darkenColor(baseColor, 0.3)
+        ctx.fill()
 
-      // Left face
-      ctx.beginPath()
-      ctx.moveTo(leftG.x, leftG.y)
-      ctx.lineTo(bottomG.x, bottomG.y)
-      ctx.lineTo(bottomR.x, bottomR.y)
-      ctx.lineTo(leftR.x, leftR.y)
-      ctx.closePath()
-      ctx.fillStyle = darkenColor(baseColor, 0.3)
-      ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(rightG.x, rightG.y)
+        ctx.lineTo(bottomG.x, bottomG.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(rightR.x, rightR.y)
+        ctx.closePath()
+        ctx.fillStyle = darkenColor(baseColor, 0.5)
+        ctx.fill()
 
-      // Right face
-      ctx.beginPath()
-      ctx.moveTo(rightG.x, rightG.y)
-      ctx.lineTo(bottomG.x, bottomG.y)
-      ctx.lineTo(bottomR.x, bottomR.y)
-      ctx.lineTo(rightR.x, rightR.y)
-      ctx.closePath()
-      ctx.fillStyle = darkenColor(baseColor, 0.5)
-      ctx.fill()
-
-      // Top face
-      ctx.beginPath()
-      ctx.moveTo(topR.x, topR.y)
-      ctx.lineTo(rightR.x, rightR.y)
-      ctx.lineTo(bottomR.x, bottomR.y)
-      ctx.lineTo(leftR.x, leftR.y)
-      ctx.closePath()
-      ctx.fillStyle = baseColor
-      ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(topR.x, topR.y)
+        ctx.lineTo(rightR.x, rightR.y)
+        ctx.lineTo(bottomR.x, bottomR.y)
+        ctx.lineTo(leftR.x, leftR.y)
+        ctx.closePath()
+        ctx.fillStyle = baseColor
+        ctx.fill()
+      }
 
       ctx.globalAlpha = 1
     }
-  }, [buildings, isPlacing, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick])
+
+    // Draw move preview
+    if (isMoving && movingBuildingId !== null && mousePos) {
+      const movingBuilding = buildings.find(b => b.buildingId === movingBuildingId)
+      if (movingBuilding) {
+        const size = BUILDING_SIZES[movingBuilding.buildingType] || { width: 1, height: 1 }
+        const { gx: gridX, gy: gridY } = screenToGrid(mousePos.x, mousePos.y)
+
+        const outOfBounds = gridX < 0 || gridY < 0 ||
+          gridX + size.width > GRID_SIZE || gridY + size.height > GRID_SIZE
+        const hasCollision = checkCollision(gridX, gridY, size.width, size.height, movingBuildingId)
+        const isValid = !outOfBounds && !hasCollision
+
+        const previewColor = isValid ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)'
+
+        const topG = gridToScreen(gridX, gridY)
+        const rightG = gridToScreen(gridX + size.width, gridY)
+        const bottomG = gridToScreen(gridX + size.width, gridY + size.height)
+        const leftG = gridToScreen(gridX, gridY + size.height)
+
+        ctx.beginPath()
+        ctx.moveTo(topG.x, topG.y)
+        ctx.lineTo(rightG.x, rightG.y)
+        ctx.lineTo(bottomG.x, bottomG.y)
+        ctx.lineTo(leftG.x, leftG.y)
+        ctx.closePath()
+        ctx.fillStyle = previewColor
+        ctx.fill()
+
+        const sprite = spritesRef.current[movingBuilding.buildingType]
+        ctx.globalAlpha = 0.6
+
+        if (sprite) {
+          const diamondW = rightG.x - leftG.x
+          const spriteW = diamondW
+          const spriteH = spriteW
+          const cx = (leftG.x + rightG.x) / 2
+          const drawX = cx - spriteW / 2
+          const drawY = bottomG.y - spriteH * 0.88
+          ctx.drawImage(sprite, drawX, drawY, spriteW, spriteH)
+        } else {
+          const baseColor = BUILDING_COLORS[movingBuilding.buildingType] || '#888'
+          const bh = BUILDING_HEIGHTS[movingBuilding.buildingType] ?? 14
+          const topR = { x: topG.x, y: topG.y - bh }
+          const rightR = { x: rightG.x, y: rightG.y - bh }
+          const bottomR = { x: bottomG.x, y: bottomG.y - bh }
+          const leftR = { x: leftG.x, y: leftG.y - bh }
+
+          ctx.beginPath()
+          ctx.moveTo(leftG.x, leftG.y)
+          ctx.lineTo(bottomG.x, bottomG.y)
+          ctx.lineTo(bottomR.x, bottomR.y)
+          ctx.lineTo(leftR.x, leftR.y)
+          ctx.closePath()
+          ctx.fillStyle = darkenColor(baseColor, 0.3)
+          ctx.fill()
+
+          ctx.beginPath()
+          ctx.moveTo(rightG.x, rightG.y)
+          ctx.lineTo(bottomG.x, bottomG.y)
+          ctx.lineTo(bottomR.x, bottomR.y)
+          ctx.lineTo(rightR.x, rightR.y)
+          ctx.closePath()
+          ctx.fillStyle = darkenColor(baseColor, 0.5)
+          ctx.fill()
+
+          ctx.beginPath()
+          ctx.moveTo(topR.x, topR.y)
+          ctx.lineTo(rightR.x, rightR.y)
+          ctx.lineTo(bottomR.x, bottomR.y)
+          ctx.lineTo(leftR.x, leftR.y)
+          ctx.closePath()
+          ctx.fillStyle = baseColor
+          ctx.fill()
+        }
+
+        ctx.globalAlpha = 1
+      }
+    }
+  }, [buildings, isPlacing, isMoving, movingBuildingId, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick])
 
   // Handle mouse down (start potential drag)
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -508,14 +588,16 @@ export function VillageGrid() {
     if (!didDrag.current) {
       const pos = clientToLogical(e.clientX, e.clientY)
       const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
-      if (isPlacing && selectedBuildingType !== null) {
+      if (isMoving && movingBuildingId !== null) {
+        moveBuilding(gridX, gridY)
+      } else if (isPlacing && selectedBuildingType !== null) {
         placeBuilding(gridX, gridY)
       } else {
         const building = getBuildingAt(gridX, gridY)
         setSelectedBuilding(building?.buildingId ?? null)
       }
     }
-  }, [isPlacing, selectedBuildingType, placeBuilding, getBuildingAt, clientToLogical])
+  }, [isPlacing, selectedBuildingType, placeBuilding, isMoving, movingBuildingId, moveBuilding, getBuildingAt, clientToLogical])
 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -663,13 +745,16 @@ export function VillageGrid() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (isMoving) {
+          cancelMoving()
+        }
         setSelectedBuilding(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [isMoving, cancelMoving])
 
   // Wheel handler: mouse wheel → zoom, trackpad two-finger → pan, trackpad pinch → zoom
   // Detection: default to zoom (preserves mouse wheel). If any event in a gesture
@@ -839,7 +924,9 @@ export function VillageGrid() {
         // Single tap — treat as click
         const pos = clientToLogical(touchStartRef.current.x, touchStartRef.current.y)
         const { gx: gridX, gy: gridY } = screenToGrid(pos.x, pos.y)
-        if (isPlacing && selectedBuildingType !== null) {
+        if (isMoving && movingBuildingId !== null) {
+          moveBuilding(gridX, gridY)
+        } else if (isPlacing && selectedBuildingType !== null) {
           placeBuilding(gridX, gridY)
         } else {
           const building = getBuildingAt(gridX, gridY)
@@ -1044,6 +1131,30 @@ export function VillageGrid() {
                 </div>
               )
             })()}
+
+          {/* Move button - only for fully built, non-upgrading buildings (except TownHall) */}
+          {selectedBuildingData.level > 0 && !selectedBuildingData.isUpgrading &&
+            selectedBuildingData.buildingType !== BuildingType.TownHall && (
+              <button
+                style={styles.moveBtn}
+                onClick={() => {
+                  startMoving(selectedBuildingData.buildingId)
+                  setSelectedBuilding(null)
+                }}
+              >
+                Move Building
+              </button>
+            )}
+        </div>
+      )}
+
+      {/* Moving indicator */}
+      {isMoving && (
+        <div style={styles.movingIndicator}>
+          <span>Moving building — click to place</span>
+          <button style={styles.cancelMoveBtn} onClick={cancelMoving}>
+            Cancel (ESC)
+          </button>
         </div>
       )}
     </div>
@@ -1115,5 +1226,41 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#FFA500',
     borderRadius: '3px',
     transition: 'width 1s linear',
+  },
+  moveBtn: {
+    width: '100%',
+    padding: '8px',
+    backgroundColor: '#3498db',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    marginTop: '8px',
+  },
+  movingIndicator: {
+    position: 'absolute',
+    bottom: '80px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: '#3498db',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    color: '#fff',
+    fontWeight: 'bold',
+    zIndex: 10,
+  },
+  cancelMoveBtn: {
+    padding: '4px 8px',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    border: 'none',
+    borderRadius: '4px',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '12px',
   },
 }

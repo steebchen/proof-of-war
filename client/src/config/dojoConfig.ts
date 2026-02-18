@@ -42,6 +42,18 @@ export const BUILDING_INFO: Record<BuildingType, { name: string; color: string; 
   [BuildingType.Wall]: { name: 'Wall', color: '#808080', width: 1, height: 1, cost: { diamond: 50, gas: 0 } },
 }
 
+// Building sprite map (building type → image path in public/)
+export const BUILDING_SPRITES: Partial<Record<BuildingType, string>> = {
+  [BuildingType.TownHall]: '/buildings/command-center.png',
+  [BuildingType.DiamondMine]: '/buildings/diamond-refinery.png',
+  [BuildingType.DiamondStorage]: '/buildings/diamond-storage.png',
+  [BuildingType.GasCollector]: '/buildings/gas-extractor.png',
+  [BuildingType.GasStorage]: '/buildings/gas-storage.png',
+  [BuildingType.Cannon]: '/buildings/cannon.png',
+  [BuildingType.ArmyCamp]: '/buildings/camp.png',
+  [BuildingType.Barracks]: '/buildings/barracks.png',
+}
+
 // Skip fee estimation on Katana dev (block timestamp can be stale)
 export const NO_FEE_DETAILS = {
   resourceBounds: {
