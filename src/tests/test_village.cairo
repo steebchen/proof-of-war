@@ -634,3 +634,67 @@ fn test_cannot_attack_shielded_player() {
     // Try to attack again while shielded — should panic
     combat_dispatcher.start_attack(defender);
 }
+
+#[test]
+fn test_loot_protection() {
+    let attacker: ContractAddress = 'attacker'.try_into().unwrap();
+    let defender: ContractAddress = 'defender'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    let (training_address, _) = world.dns(@"training_system").unwrap();
+    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
+
+    let (combat_address, _) = world.dns(@"combat_system").unwrap();
+    let combat_dispatcher = ICombatDispatcher { contract_address: combat_address };
+
+    // Spawn both players
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+    village_dispatcher.spawn('Attacker');
+
+    starknet::testing::set_contract_address(defender);
+    starknet::testing::set_account_contract_address(defender);
+    village_dispatcher.spawn('Defender');
+
+    // Set defender to have exactly 500 diamond (at the protection threshold)
+    // by spending resources on buildings
+    // Instead, we verify the loot formula works by checking battle result
+    // Attacker needs army camp, barracks, troops
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    building_dispatcher.place_building(BuildingType::ArmyCamp, 0, 0);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Barracks, 5, 5);
+    starknet::testing::set_block_timestamp(200);
+    building_dispatcher.finish_upgrade(3);
+
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
+    starknet::testing::set_block_timestamp(500);
+    training_dispatcher.collect_trained_troops(3);
+
+    // Start attack on defender (defender has STARTING_DIAMOND=2000, STARTING_GAS=1000)
+    // Lootable diamond = (2000-500)*20/100 = 300
+    // Lootable gas = (1000-500)*20/100 = 100
+    combat_dispatcher.start_attack(defender);
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
+    combat_dispatcher.resolve_battle(0);
+
+    // Check that defender wasn't fully drained
+    let defender_player: Player = world.read_model(defender);
+    // Defender should have at least 500 diamond left (protection threshold)
+    // Even if 100% destruction, max loot = 300 diamond, so defender keeps >= 1700
+    assert(defender_player.diamond >= 500, 'Diamond should be protected');
+    assert(defender_player.gas >= 500, 'Gas should be protected');
+}

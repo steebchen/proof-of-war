@@ -197,3 +197,4 @@ pub const TROPHY_LOSS_BASE: i32 = -20;
 
 // Loot percentages (percentage of stored resources that can be stolen)
 pub const LOOT_PERCENTAGE: u64 = 20; // 20% of stored resources
+pub const LOOT_PROTECTION: u64 = 500; // Resources below this threshold cannot be looted

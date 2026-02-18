@@ -55,7 +55,7 @@ pub mod combat_system {
         Battle, BattleStatus, DeployedTroop, BattleBuilding, BattleCounter
     };
     use clash_prototype::utils::config::{
-        BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE,
+        BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE, LOOT_PROTECTION,
         TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats
     };
 
@@ -88,9 +88,19 @@ pub mod combat_system {
             counter.next_battle_id += 1;
             world.write_model(@counter);
 
-            // Calculate loot available
-            let diamond_loot = defender_player.diamond * LOOT_PERCENTAGE / 100;
-            let gas_loot = defender_player.gas * LOOT_PERCENTAGE / 100;
+            // Calculate loot available (only resources above protection threshold can be looted)
+            let lootable_diamond = if defender_player.diamond > LOOT_PROTECTION {
+                defender_player.diamond - LOOT_PROTECTION
+            } else {
+                0
+            };
+            let lootable_gas = if defender_player.gas > LOOT_PROTECTION {
+                defender_player.gas - LOOT_PROTECTION
+            } else {
+                0
+            };
+            let diamond_loot = lootable_diamond * LOOT_PERCENTAGE / 100;
+            let gas_loot = lootable_gas * LOOT_PERCENTAGE / 100;
 
             // Create battle
             let battle = Battle {
