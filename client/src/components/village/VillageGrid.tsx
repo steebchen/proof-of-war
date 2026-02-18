@@ -176,6 +176,7 @@ export function VillageGrid() {
   const [canvasSize, setCanvasSize] = useState<{ w: number; h: number }>({ w: ISO_CANVAS_W, h: ISO_CANVAS_H })
   const spritesRef = useRef<Record<number, HTMLImageElement>>({})
   const [spritesLoaded, setSpritesLoaded] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState<number | null>(null)
 
   // Camera zoom + pan
   const MIN_ZOOM = 0.5
@@ -1437,10 +1438,10 @@ export function VillageGrid() {
                 </button>
                 <button
                   style={{ ...styles.moveBtn, backgroundColor: '#e74c3c' }}
-                  onClick={() => !pending && handleRemoveBuilding(selectedBuildingData.buildingId)}
+                  onClick={() => setConfirmRemove(selectedBuildingData.buildingId)}
                   disabled={pending}
                 >
-                  {pending ? '...' : 'Remove (50% refund)'}
+                  Remove
                 </button>
               </div>
             )}
@@ -1448,6 +1449,44 @@ export function VillageGrid() {
       )}
 
       {/* Moving indicator */}
+      {/* Confirm remove dialog */}
+      {confirmRemove !== null && (() => {
+        const b = buildings.find(b => b.buildingId === confirmRemove)
+        const name = b ? (BUILDING_NAMES[b.buildingType] || 'Building') : 'Building'
+        const info = b ? BUILDING_INFO[b.buildingType as BuildingType] : null
+        const refundD = info ? Math.floor(info.cost.diamond / 2) : 0
+        const refundG = info ? Math.floor(info.cost.gas / 2) : 0
+        return (
+          <div style={styles.confirmOverlay}>
+            <div style={styles.confirmBox}>
+              <p style={{ margin: '0 0 12px', fontWeight: 'bold' }}>Remove {name}?</p>
+              <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#aaa' }}>
+                Refund: {refundD > 0 ? `${refundD} diamond` : ''}{refundD > 0 && refundG > 0 ? ', ' : ''}{refundG > 0 ? `${refundG} gas` : ''}
+                {refundD === 0 && refundG === 0 ? 'None' : ''}
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button
+                  style={{ ...styles.upgradeBtn, backgroundColor: '#e74c3c' }}
+                  onClick={() => {
+                    handleRemoveBuilding(confirmRemove)
+                    setConfirmRemove(null)
+                  }}
+                  disabled={pending}
+                >
+                  {pending ? 'Removing...' : 'Confirm'}
+                </button>
+                <button
+                  style={{ ...styles.upgradeBtn, backgroundColor: '#555' }}
+                  onClick={() => setConfirmRemove(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {isMoving && (
         <div style={styles.movingIndicator}>
           <span>Moving building — click to place</span>
@@ -1537,6 +1576,25 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     fontSize: '12px',
     marginTop: '8px',
+  },
+  confirmOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  },
+  confirmBox: {
+    backgroundColor: '#1a1a2e',
+    border: '2px solid #e74c3c',
+    borderRadius: '12px',
+    padding: '20px 28px',
+    textAlign: 'center',
   },
   movingIndicator: {
     position: 'absolute',
