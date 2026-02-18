@@ -199,8 +199,9 @@ function App() {
       <main style={styles.main}>
         {!isConnected ? (
           <div style={styles.connectPrompt}>
-            <h2>Welcome to Clash Prototype!</h2>
-            <p>Connect your wallet to start playing</p>
+            <h2 style={{ fontSize: '28px', color: '#FFD700' }}>Clash Prototype</h2>
+            <p style={{ color: '#aaa', marginBottom: '8px' }}>An on-chain strategy game on Starknet</p>
+            <p style={{ color: '#666', fontSize: '14px' }}>Connect your wallet to start playing</p>
           </div>
         ) : isFetchingPlayer ? (
           <div style={styles.loadingPrompt}>
@@ -210,8 +211,33 @@ function App() {
           </div>
         ) : !player ? (
           <div style={styles.spawnPrompt}>
-            <h2>Welcome, Commander!</h2>
-            <p>Choose a name and create your village</p>
+            <h2 style={{ fontSize: '28px', color: '#FFD700', marginBottom: '8px' }}>Welcome, Commander!</h2>
+            <p style={{ color: '#aaa', marginBottom: '24px' }}>Build your base, train troops, and battle other players on-chain.</p>
+
+            <div style={styles.howToPlay}>
+              <div style={styles.howToPlayStep}>
+                <span style={{ ...styles.stepIcon, backgroundColor: '#FFD700' }}>1</span>
+                <div>
+                  <strong>Build</strong>
+                  <p style={styles.stepDesc}>Place mines, storages, barracks, and defenses to grow your village.</p>
+                </div>
+              </div>
+              <div style={styles.howToPlayStep}>
+                <span style={{ ...styles.stepIcon, backgroundColor: '#FFA500' }}>2</span>
+                <div>
+                  <strong>Train</strong>
+                  <p style={styles.stepDesc}>Train barbarians and archers at your barracks to form an army.</p>
+                </div>
+              </div>
+              <div style={styles.howToPlayStep}>
+                <span style={{ ...styles.stepIcon, backgroundColor: '#e74c3c' }}>3</span>
+                <div>
+                  <strong>Attack</strong>
+                  <p style={styles.stepDesc}>Scout opponents and deploy troops to steal their resources and earn trophies.</p>
+                </div>
+              </div>
+            </div>
+
             <input
               type="text"
               placeholder="Enter your name..."
@@ -294,6 +320,40 @@ const styles: Record<string, React.CSSProperties> = {
   spawnPrompt: {
     textAlign: 'center',
     padding: '48px',
+    maxWidth: '480px',
+    margin: '0 auto',
+  },
+  howToPlay: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginBottom: '24px',
+    textAlign: 'left',
+  },
+  howToPlayStep: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '10px 14px',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '8px',
+  },
+  stepIcon: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+    fontSize: '14px',
+    color: '#000',
+    flexShrink: 0,
+  },
+  stepDesc: {
+    fontSize: '13px',
+    color: '#aaa',
+    margin: '2px 0 0',
   },
   loadingPrompt: {
     textAlign: 'center',
