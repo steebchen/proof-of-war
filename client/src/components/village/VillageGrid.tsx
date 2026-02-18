@@ -306,16 +306,96 @@ export function VillageGrid() {
         ctx.fillStyle = 'rgba(255, 165, 0, 0.5)'
         ctx.fill()
 
-        // Countdown text on top face
-        ctx.fillStyle = '#fff'
-        ctx.font = 'bold 9px sans-serif'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(
-          remaining > 0 ? formatCountdown(remaining) : 'Ready!',
-          topCenter.x,
-          topCenter.y + 10
-        )
+        if (remaining > 0) {
+          // Countdown text on top face
+          ctx.fillStyle = '#fff'
+          ctx.font = 'bold 9px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(
+            formatCountdown(remaining),
+            topCenter.x,
+            topCenter.y + 10
+          )
+        } else {
+          // Ready indicator - green pulsing circle with checkmark above building
+          const indicatorX = topCenter.x
+          const indicatorY = topR.y - 12
+          const pulse = 0.8 + 0.2 * Math.sin(now * 3) // pulsing effect
+          const radius = 10 * pulse
+
+          // Green circle background
+          ctx.beginPath()
+          ctx.arc(indicatorX, indicatorY, radius, 0, Math.PI * 2)
+          ctx.fillStyle = '#27ae60'
+          ctx.fill()
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+
+          // Checkmark
+          ctx.beginPath()
+          ctx.moveTo(indicatorX - 4, indicatorY)
+          ctx.lineTo(indicatorX - 1, indicatorY + 3)
+          ctx.lineTo(indicatorX + 5, indicatorY - 3)
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 2
+          ctx.stroke()
+
+          // "Ready!" text below the circle
+          ctx.fillStyle = '#27ae60'
+          ctx.font = 'bold 9px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'top'
+          ctx.fillText('Ready!', topCenter.x, topCenter.y + 6)
+        }
+      }
+    }
+
+    // Worker ready indicator on Command Center (Town Hall)
+    if (builderQueue?.isTraining) {
+      const townHall = buildings.find(b => b.buildingType === BuildingType.TownHall)
+      if (townHall) {
+        const workerRemaining = getUpgradeRemaining(builderQueue.finishTime, now)
+        if (workerRemaining <= 0) {
+          const size = BUILDING_SIZES[BuildingType.TownHall] || { width: 4, height: 4 }
+          const bh = BUILDING_HEIGHTS[BuildingType.TownHall] ?? 14
+          const topG = gridToScreen(townHall.x, townHall.y)
+          const rightG = gridToScreen(townHall.x + size.width, townHall.y)
+          const bottomG = gridToScreen(townHall.x + size.width, townHall.y + size.height)
+          const leftG = gridToScreen(townHall.x, townHall.y + size.height)
+          const topR = { x: topG.x, y: topG.y - bh }
+          const topCenter = {
+            x: (topR.x + rightG.x - bh + bottomG.x - bh + leftG.x - bh) / 4,
+            y: ((topG.y - bh) + (rightG.y - bh) + (bottomG.y - bh) + (leftG.y - bh)) / 4,
+          }
+          const indicatorX = topCenter.x
+          const indicatorY = topR.y - 12
+          const pulse = 0.8 + 0.2 * Math.sin(now * 3)
+          const radius = 10 * pulse
+
+          // Blue circle with worker icon
+          ctx.beginPath()
+          ctx.arc(indicatorX, indicatorY, radius, 0, Math.PI * 2)
+          ctx.fillStyle = '#3498db'
+          ctx.fill()
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+
+          // Worker "W" text inside circle
+          ctx.fillStyle = '#fff'
+          ctx.font = 'bold 10px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText('W', indicatorX, indicatorY)
+
+          // "Collect" text below
+          ctx.fillStyle = '#3498db'
+          ctx.font = 'bold 9px sans-serif'
+          ctx.textBaseline = 'top'
+          ctx.fillText('Worker!', topCenter.x, topCenter.y + 6)
+        }
       }
     }
 
@@ -819,11 +899,19 @@ export function VillageGrid() {
           )}
 
           {/* Upgrading status with timer */}
-          {selectedBuildingData.isUpgrading && (
+          {selectedBuildingData.isUpgrading && (() => {
+            const totalUpgradeTime = getUpgradeTime(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
+            const upgradeProgress = totalUpgradeTime > 0 ? Math.min(1, Math.max(0, (totalUpgradeTime - upgradeRemaining) / totalUpgradeTime)) : 0
+            return (
             <div style={styles.upgradeSection}>
               <p style={{ ...styles.stat, color: '#FFA500', fontWeight: 'bold' }}>
                 {upgradeReady ? 'Upgrade complete!' : `Upgrading... ${formatCountdown(upgradeRemaining)}`}
               </p>
+              {!upgradeReady && (
+                <div style={styles.progressBarBg}>
+                  <div style={{ ...styles.progressBarFill, width: `${upgradeProgress * 100}%` }} />
+                </div>
+              )}
               <button
                 style={{
                   ...styles.upgradeBtn,
@@ -837,7 +925,8 @@ export function VillageGrid() {
                 {pending ? 'Finishing...' : upgradeReady ? 'Finish Upgrade' : `${formatCountdown(upgradeRemaining)} remaining`}
               </button>
             </div>
-          )}
+            )
+          })()}
 
           {/* Upgrade button */}
           {!selectedBuildingData.isUpgrading &&
@@ -902,11 +991,20 @@ export function VillageGrid() {
                     Workers: {player.totalBuilders}/{maxWorkers}
                   </p>
 
-                  {isTraining && !trainingReady && (
-                    <p style={{ ...styles.stat, color: '#FFA500' }}>
-                      Training worker... {formatCountdown(trainingRemaining)}
-                    </p>
-                  )}
+                  {isTraining && !trainingReady && (() => {
+                    const totalTime = getWorkerTrainingTime(player.totalBuilders - 1)
+                    const progress = totalTime > 0 ? Math.min(1, Math.max(0, (totalTime - trainingRemaining) / totalTime)) : 0
+                    return (
+                      <div>
+                        <p style={{ ...styles.stat, color: '#FFA500' }}>
+                          Training worker... {formatCountdown(trainingRemaining)}
+                        </p>
+                        <div style={styles.progressBarBg}>
+                          <div style={{ ...styles.progressBarFill, width: `${progress * 100}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {trainingReady && (
                     <button
@@ -994,5 +1092,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     fontSize: '12px',
     marginTop: '4px',
+  },
+  progressBarBg: {
+    width: '100%',
+    height: '6px',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: '3px',
+    marginTop: '4px',
+    marginBottom: '4px',
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#FFA500',
+    borderRadius: '3px',
+    transition: 'width 1s linear',
   },
 }
