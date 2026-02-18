@@ -3,7 +3,7 @@ import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
 import { useDojo } from '../../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
-import { dojoConfig, BuildingType, BUILDING_INFO, NO_FEE_DETAILS } from '../../config/dojoConfig'
+import { dojoConfig, BuildingType, BUILDING_INFO, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -96,6 +96,10 @@ const UPGRADE_BASE_TIMES: Record<number, number> = {
 
 function getUpgradeTime(buildingType: number, nextLevel: number): number {
   return (UPGRADE_BASE_TIMES[buildingType] ?? 300) * nextLevel
+}
+
+function getBuildTime(buildingType: number): number {
+  return BUILD_TIMES[buildingType as keyof typeof BUILD_TIMES] ?? 3
 }
 
 // Worker training times (must match Cairo config)
@@ -898,14 +902,18 @@ export function VillageGrid() {
             </p>
           )}
 
-          {/* Upgrading status with timer */}
+          {/* Upgrading/Building status with timer */}
           {selectedBuildingData.isUpgrading && (() => {
-            const totalUpgradeTime = getUpgradeTime(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
-            const upgradeProgress = totalUpgradeTime > 0 ? Math.min(1, Math.max(0, (totalUpgradeTime - upgradeRemaining) / totalUpgradeTime)) : 0
+            const isConstruction = selectedBuildingData.level === 0
+            const totalTime = isConstruction
+              ? getBuildTime(selectedBuildingData.buildingType)
+              : getUpgradeTime(selectedBuildingData.buildingType, selectedBuildingData.level + 1)
+            const upgradeProgress = totalTime > 0 ? Math.min(1, Math.max(0, (totalTime - upgradeRemaining) / totalTime)) : 0
+            const statusText = isConstruction ? 'Building' : 'Upgrading'
             return (
             <div style={styles.upgradeSection}>
               <p style={{ ...styles.stat, color: '#FFA500', fontWeight: 'bold' }}>
-                {upgradeReady ? 'Upgrade complete!' : `Upgrading... ${formatCountdown(upgradeRemaining)}`}
+                {upgradeReady ? (isConstruction ? 'Construction complete!' : 'Upgrade complete!') : `${statusText}... ${formatCountdown(upgradeRemaining)}`}
               </p>
               {!upgradeReady && (
                 <div style={styles.progressBarBg}>
@@ -922,7 +930,7 @@ export function VillageGrid() {
                 onClick={() => upgradeReady && !pending && handleFinishUpgrade(selectedBuildingData.buildingId)}
                 disabled={!upgradeReady || pending}
               >
-                {pending ? 'Finishing...' : upgradeReady ? 'Finish Upgrade' : `${formatCountdown(upgradeRemaining)} remaining`}
+                {pending ? 'Finishing...' : upgradeReady ? (isConstruction ? 'Finish Building' : 'Finish Upgrade') : `${formatCountdown(upgradeRemaining)} remaining`}
               </button>
             </div>
             )

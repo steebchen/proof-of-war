@@ -41,7 +41,7 @@ pub mod building_system {
     use clash_prototype::models::army::Army;
     use clash_prototype::utils::config::{
         GRID_SIZE, get_building_cost, get_building_health, get_max_building_count,
-        get_upgrade_time, get_army_camp_capacity, get_max_level
+        get_upgrade_time, get_build_time, get_army_camp_capacity, get_max_level
     };
 
     #[abi(embed_v0)]
@@ -63,6 +63,9 @@ pub mod building_system {
             let current_count = self.count_buildings_of_type(@world, player_address, building_type, player.building_count);
             assert(current_count < max_count.into(), 'Building limit reached');
 
+            // Check free builder available
+            assert(player.free_builders > 0, 'No free builders');
+
             // Check resources
             let cost = get_building_cost(building_type, 1);
             assert(player.diamond >= cost.diamond, 'Not enough diamond');
@@ -76,33 +79,28 @@ pub mod building_system {
             let has_collision = self.check_collision(@world, player_address, x, y, width, height, player.building_count, 0);
             assert(!has_collision, 'Building collision');
 
-            // Deduct resources
+            // Deduct resources and assign builder
             player.diamond -= cost.diamond;
             player.gas -= cost.gas;
+            player.free_builders -= 1;
             player.building_count += 1;
             world.write_model(@player);
 
-            // Create building
+            // Create building at level 0 with construction timer
+            let build_time = get_build_time(building_type);
             let new_building = Building {
                 owner: player_address,
                 building_id: player.building_count,
                 building_type,
-                level: 1,
+                level: 0,
                 x,
                 y,
-                health: get_building_health(building_type, 1),
-                is_upgrading: false,
-                upgrade_finish_time: 0,
+                health: 0,
+                is_upgrading: true,
+                upgrade_finish_time: current_time + build_time,
                 last_collected_at: current_time,
             };
             world.write_model(@new_building);
-
-            // Update army capacity if it's an army camp
-            if building_type == BuildingType::ArmyCamp {
-                let mut army: Army = world.read_model(player_address);
-                army.max_capacity += get_army_camp_capacity(1);
-                world.write_model(@army);
-            }
 
             // Emit event
             world.emit_event(@BuildingPlaced {
@@ -156,11 +154,10 @@ pub mod building_system {
             // Get building
             let mut building: Building = world.read_model((player_address, building_id));
 
-            assert(building.level > 0, 'Building not found');
             assert(building.is_upgrading, 'Not upgrading');
             assert(current_time >= building.upgrade_finish_time, 'Upgrade not finished');
 
-            // Complete upgrade
+            // Complete upgrade (handles both construction level 0→1 and upgrades)
             building.level += 1;
             building.is_upgrading = false;
             building.upgrade_finish_time = 0;
@@ -241,7 +238,7 @@ pub mod building_system {
                     break;
                 }
                 let building: Building = world.read_model((owner, i));
-                if building.level > 0 && building.building_type == building_type {
+                if (building.level > 0 || building.is_upgrading) && building.building_type == building_type {
                     count += 1;
                 }
                 i += 1;
@@ -268,7 +265,7 @@ pub mod building_system {
 
                 if i != exclude_id {
                     let building: Building = world.read_model((owner, i));
-                    if building.level > 0 {
+                    if building.level > 0 || building.is_upgrading {
                         let (b_width, b_height) = get_building_size(building.building_type);
 
                         // Check AABB collision

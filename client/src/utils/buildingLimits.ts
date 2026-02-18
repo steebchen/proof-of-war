@@ -20,7 +20,7 @@ export function getMaxBuildingCount(buildingType: BuildingType, townHallLevel: n
     case BuildingType.Barracks:
       return 1 + Math.floor(townHallLevel / 3)
     case BuildingType.ArmyCamp:
-      return 1 + Math.floor(townHallLevel / 2)
+      return 1
     case BuildingType.Cannon:
       return townHallLevel
     case BuildingType.ArcherTower:

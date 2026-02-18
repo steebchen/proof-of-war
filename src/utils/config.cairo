@@ -147,6 +147,22 @@ pub fn get_max_building_count(building_type: BuildingType, town_hall_level: u8) 
     }
 }
 
+// Initial construction time for placing a new building (level 0 → 1)
+pub fn get_build_time(building_type: BuildingType) -> u64 {
+    match building_type {
+        BuildingType::TownHall => 0, // spawned instantly
+        BuildingType::DiamondMine => 3,
+        BuildingType::GasCollector => 3,
+        BuildingType::DiamondStorage => 5,
+        BuildingType::GasStorage => 5,
+        BuildingType::Barracks => 10,
+        BuildingType::ArmyCamp => 10,
+        BuildingType::Cannon => 30,
+        BuildingType::ArcherTower => 30,
+        BuildingType::Wall => 1,
+    }
+}
+
 // Upgrade time in seconds
 pub fn get_upgrade_time(building_type: BuildingType, level: u8) -> u64 {
     let base_time: u64 = match building_type {

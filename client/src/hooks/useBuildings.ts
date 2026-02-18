@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useDojo, Building } from '../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
 import { BUILDING_SIZES } from '../utils/constants'
-import { dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
+import { dojoConfig, NO_FEE_DETAILS, BUILD_TIMES } from '../config/dojoConfig'
 import { canBuildMore } from '../utils/buildingLimits'
 
 export function useBuildings() {
@@ -73,23 +73,29 @@ export function useBuildings() {
       return false
     }
 
-    // Optimistically add building to local state
+    // Optimistically add building to local state (level 0, under construction)
+    const buildTime = BUILD_TIMES[selectedBuildingType as keyof typeof BUILD_TIMES] ?? 3
+    const nowSec = Math.floor(Date.now() / 1000)
     const newBuilding: Building = {
       owner: account.address,
       buildingId: (player?.buildingCount ?? buildings.length) + 1,
       buildingType: selectedBuildingType,
-      level: 1,
+      level: 0,
       x,
       y,
-      health: 100,
-      isUpgrading: false,
-      upgradeFinishTime: BigInt(0),
-      lastCollectedAt: BigInt(Math.floor(Date.now() / 1000)),
+      health: 0,
+      isUpgrading: true,
+      upgradeFinishTime: BigInt(nowSec + buildTime),
+      lastCollectedAt: BigInt(nowSec),
     }
 
     setBuildings([...buildings, newBuilding])
     if (player) {
-      setPlayer({ ...player, buildingCount: (player.buildingCount ?? 0) + 1 })
+      setPlayer({
+        ...player,
+        buildingCount: (player.buildingCount ?? 0) + 1,
+        freeBuilders: Math.max(0, player.freeBuilders - 1),
+      })
     }
     cancelPlacing()
 

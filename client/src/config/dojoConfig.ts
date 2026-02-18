@@ -51,6 +51,20 @@ export const NO_FEE_DETAILS = {
   },
 }
 
+// Initial construction times in seconds (must match Cairo config)
+export const BUILD_TIMES: Record<BuildingType, number> = {
+  [BuildingType.TownHall]: 0,
+  [BuildingType.DiamondMine]: 3,
+  [BuildingType.GasCollector]: 3,
+  [BuildingType.DiamondStorage]: 5,
+  [BuildingType.GasStorage]: 5,
+  [BuildingType.Barracks]: 10,
+  [BuildingType.ArmyCamp]: 10,
+  [BuildingType.Cannon]: 30,
+  [BuildingType.ArcherTower]: 30,
+  [BuildingType.Wall]: 1,
+}
+
 // Troop types
 export enum TroopType {
   Barbarian = 0,

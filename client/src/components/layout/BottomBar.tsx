@@ -34,13 +34,16 @@ export function BottomBar({ onOpenArmy, onOpenAttack }: BottomBarProps) {
             const affordable = canAfford(building.cost.diamond, building.cost.gas)
             const limitInfo = limits[building.type]
             const atLimit = !limitInfo.canBuild
+            const noWorkers = (player?.freeBuilders ?? 0) <= 0
             const isSelected = isPlacing && selectedBuildingType === building.type
-            const isDisabled = !affordable || atLimit
+            const isDisabled = !affordable || atLimit || noWorkers
 
             // Determine disabled reason
             let disabledReason = ''
             if (atLimit) {
               disabledReason = 'Max built'
+            } else if (noWorkers) {
+              disabledReason = 'No free workers'
             } else if (!affordable) {
               if (building.cost.diamond > 0 && diamond < BigInt(building.cost.diamond)) {
                 disabledReason = `Need ${building.cost.diamond - Number(diamond)} diamond`

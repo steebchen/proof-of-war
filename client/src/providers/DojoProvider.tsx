@@ -259,7 +259,12 @@ export function DojoProvider({ children }: { children: ReactNode }) {
       for (const entity of playerEntities) {
         const playerData = entity.models?.clash?.Player
         if (playerData) {
-          setPlayer(transformPlayer(playerData as ClashSchemaType['clash']['Player'], address))
+          const transformed = transformPlayer(playerData as ClashSchemaType['clash']['Player'], address)
+          // After despawn, player entity still exists in Torii with town_hall_level=0
+          if (transformed.townHallLevel === 0) {
+            break
+          }
+          setPlayer(transformed)
           playerFound = true
           break
         }
@@ -291,7 +296,11 @@ export function DojoProvider({ children }: { children: ReactNode }) {
       for (const entity of buildingEntities) {
         const buildingData = entity.models?.clash?.Building
         if (buildingData) {
-          fetchedBuildings.push(transformBuilding(buildingData as ClashSchemaType['clash']['Building']))
+          const b = transformBuilding(buildingData as ClashSchemaType['clash']['Building'])
+          // Filter out zeroed buildings (from despawn)
+          if (b.level > 0 || b.isUpgrading) {
+            fetchedBuildings.push(b)
+          }
         }
       }
       setBuildings(fetchedBuildings)
@@ -384,22 +393,35 @@ export function DojoProvider({ children }: { children: ReactNode }) {
               // Handle Player updates
               const playerData = entity.models?.clash?.Player
               if (playerData) {
-                setPlayer(transformPlayer(playerData as ClashSchemaType['clash']['Player'], address))
+                const transformed = transformPlayer(playerData as ClashSchemaType['clash']['Player'], address)
+                // After despawn, player entity has town_hall_level=0
+                if (transformed.townHallLevel === 0) {
+                  setPlayer(null)
+                  setBuildings([])
+                  setArmy(null)
+                } else {
+                  setPlayer(transformed)
+                }
               }
 
               // Handle Building updates
               const buildingData = entity.models?.clash?.Building
               if (buildingData) {
                 const newBuilding = transformBuilding(buildingData as ClashSchemaType['clash']['Building'])
-                setBuildings(prev => {
-                  const existing = prev.findIndex(b => b.buildingId === newBuilding.buildingId)
-                  if (existing >= 0) {
-                    const updated = [...prev]
-                    updated[existing] = newBuilding
-                    return updated
-                  }
-                  return [...prev, newBuilding]
-                })
+                // After despawn, buildings are zeroed out (level=0, not upgrading)
+                if (newBuilding.level === 0 && !newBuilding.isUpgrading) {
+                  setBuildings(prev => prev.filter(b => b.buildingId !== newBuilding.buildingId))
+                } else {
+                  setBuildings(prev => {
+                    const existing = prev.findIndex(b => b.buildingId === newBuilding.buildingId)
+                    if (existing >= 0) {
+                      const updated = [...prev]
+                      updated[existing] = newBuilding
+                      return updated
+                    }
+                    return [...prev, newBuilding]
+                  })
+                }
               }
 
               // Handle Army updates

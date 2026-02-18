@@ -242,14 +242,34 @@ function App() {
         <button
           style={styles.devSpawnBtn}
           onClick={async () => {
-            if (isSpawning) return
-            // Clear local state
-            setPlayer(null)
-            setBuildings([])
-            setArmy(null)
-            hasFetchedRef.current = false
-            // Try to spawn (will succeed on fresh Katana, fail with "already exists" otherwise)
-            await handleSpawn()
+            if (isSpawning || !account) return
+            setIsSpawning(true)
+            try {
+              // Despawn first (reset on-chain state)
+              if (player) {
+                try {
+                  await account.execute([{
+                    contractAddress: dojoConfig.villageSystemAddress,
+                    entrypoint: 'despawn',
+                    calldata: [],
+                  }], NO_FEE_DETAILS)
+                  console.log('Despawn successful')
+                  // Wait for Katana to process the despawn before spawning
+                  await new Promise(r => setTimeout(r, 500))
+                } catch (e) {
+                  console.log('Despawn failed (may not exist):', e)
+                }
+              }
+              // Clear local state
+              setPlayer(null)
+              setBuildings([])
+              setArmy(null)
+              hasFetchedRef.current = false
+              // Spawn fresh
+              await handleSpawn()
+            } finally {
+              setIsSpawning(false)
+            }
           }}
           disabled={isSpawning}
         >
