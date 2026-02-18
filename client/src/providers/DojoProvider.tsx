@@ -64,6 +64,7 @@ interface DojoContextType {
   setArmy: (army: Army | null) => void
   setBuilderQueue: (queue: BuilderQueue | null) => void
   fetchPlayerData: (address: string) => Promise<boolean>
+  fetchAllPlayers: (excludeAddress?: string) => Promise<Player[]>
   fetchDefenderBuildings: (address: string) => Promise<Building[]>
   fetchBattleData: (battleId?: number) => Promise<number | null>
   refreshData: () => void
@@ -365,6 +366,49 @@ export function DojoProvider({ children }: { children: ReactNode }) {
     }
   }, [sdk])
 
+  // Fetch all spawned players from Torii
+  const fetchAllPlayers = useCallback(async (excludeAddress?: string): Promise<Player[]> => {
+    if (!sdk) return []
+
+    try {
+      const query = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          KeysClause(
+            [MODELS.Player],
+            [],
+            'VariableLen'
+          ).build()
+        )
+        .withLimit(100)
+
+      const response = await sdk.getEntities({ query })
+      const entities = response.getItems()
+      const players: Player[] = []
+
+      const excludePadded = excludeAddress ? addAddressPadding(excludeAddress).toLowerCase() : null
+
+      for (const entity of entities) {
+        const playerData = entity.models?.clash?.Player
+        if (playerData && playerData.address) {
+          const addr = playerData.address as string
+          const transformed = transformPlayer(playerData as ClashSchemaType['clash']['Player'], addr)
+          // Only include spawned players (town_hall_level > 0)
+          if (transformed.townHallLevel === 0) continue
+          // Exclude self
+          if (excludePadded && addAddressPadding(addr).toLowerCase() === excludePadded) continue
+          players.push(transformed)
+        }
+      }
+
+      // Sort by trophies descending
+      players.sort((a, b) => b.trophies - a.trophies)
+      return players
+    } catch (err) {
+      console.error('Failed to fetch all players:', err)
+      return []
+    }
+  }, [sdk])
+
   // Set up entity subscriptions for real-time updates
   const setupSubscriptions = useCallback(async (address: string) => {
     if (!sdk) return
@@ -563,6 +607,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         setArmy,
         setBuilderQueue,
         fetchPlayerData,
+        fetchAllPlayers,
         fetchDefenderBuildings,
         fetchBattleData,
         refreshData,

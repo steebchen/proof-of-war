@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useAccount } from '@starknet-react/core'
 import { useAttack, BattleState } from '../../hooks/useAttack'
 import { useTroops } from '../../hooks/useTroops'
-import { useDojo, Building } from '../../providers/DojoProvider'
+import { useDojo, Building, Player } from '../../providers/DojoProvider'
 import { TroopType, TROOP_INFO, BuildingType } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
@@ -232,9 +233,10 @@ function findNearestBuilding(tx: number, ty: number, buildings: SimBuilding[]): 
 export function AttackScreen({ onClose }: AttackScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { address } = useAccount()
   const { currentBattle, startAttack, deployTroop, resolveBattle, cancelAttack } = useAttack()
   const { barbarians, archers } = useTroops()
-  const { fetchDefenderBuildings } = useDojo()
+  const { fetchDefenderBuildings, fetchAllPlayers } = useDojo()
   const [selectedTroop, setSelectedTroop] = useState<TroopType | null>(null)
   const [targetAddress, setTargetAddress] = useState('')
   const [defenderBuildings, setDefenderBuildings] = useState<Building[]>([])
@@ -244,6 +246,19 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [pending, setPending] = useState(false)
   const spritesRef = useRef<Record<number, HTMLImageElement>>({})
   const [spritesLoaded, setSpritesLoaded] = useState(false)
+
+  // Player discovery
+  const [opponents, setOpponents] = useState<Player[]>([])
+  const [loadingOpponents, setLoadingOpponents] = useState(true)
+
+  // Fetch opponents on mount
+  useEffect(() => {
+    setLoadingOpponents(true)
+    fetchAllPlayers(address).then(players => {
+      setOpponents(players)
+      setLoadingOpponents(false)
+    })
+  }, [fetchAllPlayers, address])
 
   // Replay state
   const [replaySnapshots, setReplaySnapshots] = useState<TickSnapshot[]>([])
@@ -746,22 +761,56 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
         </div>
 
         {phase === 'scout' && (
-          <div style={styles.targetInput}>
-            <label>Target Address:</label>
-            <input
-              type="text"
-              value={targetAddress}
-              onChange={(e) => setTargetAddress(e.target.value)}
-              placeholder="0x..."
-              style={styles.input}
-            />
-            <button
-              style={{ ...styles.startBtn, opacity: pending ? 0.5 : 1 }}
-              onClick={handleScout}
-              disabled={pending}
-            >
-              {pending ? 'Scouting...' : 'Scout & Attack'}
-            </button>
+          <div style={styles.scoutPhase}>
+            <h3 style={{ margin: '0 0 12px 0', color: '#e74c3c' }}>Choose an Opponent</h3>
+            {loadingOpponents ? (
+              <div style={{ textAlign: 'center', padding: '32px', color: '#888' }}>
+                Loading opponents...
+              </div>
+            ) : opponents.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px', color: '#888' }}>
+                No opponents found. Wait for other players to join!
+              </div>
+            ) : (
+              <div style={styles.opponentList}>
+                {opponents.map(opponent => (
+                  <button
+                    key={opponent.address}
+                    style={{
+                      ...styles.opponentCard,
+                      border: targetAddress === opponent.address ? '2px solid #e74c3c' : '2px solid #0f3460',
+                      opacity: pending ? 0.6 : 1,
+                    }}
+                    onClick={() => setTargetAddress(opponent.address)}
+                    disabled={pending}
+                  >
+                    <div style={styles.opponentInfo}>
+                      <span style={styles.opponentName}>{opponent.username || 'Unknown'}</span>
+                      <span style={styles.opponentAddress}>
+                        {opponent.address.slice(0, 6)}...{opponent.address.slice(-4)}
+                      </span>
+                    </div>
+                    <div style={styles.opponentStats}>
+                      <span style={styles.statBadge} title="Trophies">
+                        {opponent.trophies}
+                      </span>
+                      <span style={styles.statBadgeTH} title="Town Hall Level">
+                        TH{opponent.townHallLevel}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {targetAddress && (
+              <button
+                style={{ ...styles.startBtn, opacity: pending ? 0.5 : 1, marginTop: '12px' }}
+                onClick={handleScout}
+                disabled={pending}
+              >
+                {pending ? 'Scouting...' : 'Scout & Attack'}
+              </button>
+            )}
           </div>
         )}
 
@@ -905,19 +954,62 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontWeight: 'bold',
   },
-  targetInput: {
+  scoutPhase: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
   },
-  input: {
-    padding: '12px',
-    borderRadius: '8px',
-    border: '1px solid #0f3460',
+  opponentList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    maxHeight: '400px',
+    overflowY: 'auto',
+  },
+  opponentCard: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 16px',
     backgroundColor: '#16213e',
+    borderRadius: '8px',
+    cursor: 'pointer',
     color: '#fff',
-    fontSize: '14px',
+    textAlign: 'left' as const,
+  },
+  opponentInfo: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '4px',
+  },
+  opponentName: {
+    fontWeight: 'bold',
+    fontSize: '15px',
+  },
+  opponentAddress: {
+    fontSize: '11px',
+    color: '#888',
     fontFamily: 'monospace',
+  },
+  opponentStats: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  statBadge: {
+    padding: '4px 10px',
+    backgroundColor: '#f39c12',
+    color: '#000',
+    borderRadius: '12px',
+    fontWeight: 'bold',
+    fontSize: '13px',
+  },
+  statBadgeTH: {
+    padding: '4px 10px',
+    backgroundColor: '#3498db',
+    color: '#fff',
+    borderRadius: '12px',
+    fontWeight: 'bold',
+    fontSize: '13px',
   },
   startBtn: {
     padding: '12px 24px',
