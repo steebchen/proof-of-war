@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  SOZO_VERSION: "1.8.6"
+  SCARB_VERSION: "2.13.1"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install scarb
+        run: |
+          curl -L "https://github.com/software-mansion/scarb/releases/download/v${SCARB_VERSION}/scarb-v${SCARB_VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o scarb.tar.gz
+          tar -xzf scarb.tar.gz
+          sudo mv "scarb-v${SCARB_VERSION}-x86_64-unknown-linux-gnu/bin"/* /usr/local/bin/
+          scarb --version
+
+      - name: Install sozo
+        run: |
+          curl -L "https://github.com/dojoengine/dojo/releases/download/sozo/v${SOZO_VERSION}/sozo_v${SOZO_VERSION}_linux_amd64.tar.gz" -o sozo.tar.gz
+          tar -xzf sozo.tar.gz
+          chmod +x sozo
+          sudo mv sozo /usr/local/bin/
+          sozo --version
+
+      - name: Build
+        run: sozo build
+
+      - name: Test
+        run: sozo test

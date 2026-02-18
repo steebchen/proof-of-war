@@ -108,7 +108,23 @@ pub mod combat_system {
             };
             world.write_model(@battle);
 
-            // Snapshot defender's buildings
+            // Count active buildings first for proper loot distribution
+            let mut active_building_count: u32 = 0;
+            let mut i: u32 = 1;
+            loop {
+                if i > defender_player.building_count {
+                    break;
+                }
+                let building: Building = world.read_model((defender, i));
+                if building.level > 0 {
+                    active_building_count += 1;
+                }
+                i += 1;
+            };
+
+            assert(active_building_count > 0, 'Defender has no buildings');
+
+            // Snapshot defender's buildings with correct loot distribution
             let mut building_count: u32 = 0;
             let mut i: u32 = 1;
             loop {
@@ -120,9 +136,9 @@ pub mod combat_system {
                 if building.level > 0 {
                     building_count += 1;
 
-                    // Distribute loot across buildings proportionally
-                    let building_diamond = diamond_loot / defender_player.building_count.into();
-                    let building_gas = gas_loot / defender_player.building_count.into();
+                    // Distribute loot evenly across active buildings only
+                    let building_diamond = diamond_loot / active_building_count.into();
+                    let building_gas = gas_loot / active_building_count.into();
 
                     let battle_building = BattleBuilding {
                         battle_id,
@@ -159,11 +175,13 @@ pub mod combat_system {
         fn deploy_troop(ref self: ContractState, battle_id: u32, troop_type: TroopType, x: u16, y: u16) {
             let mut world = self.world_default();
             let player = get_caller_address();
+            let current_time = get_block_timestamp();
 
             // Get battle
             let mut battle: Battle = world.read_model(battle_id);
             assert(battle.attacker == player, 'Not the attacker');
             assert(battle.status == BattleStatus::Preparing || battle.status == BattleStatus::InProgress, 'Battle not active');
+            assert(current_time <= battle.ends_at, 'Battle expired');
 
             // Check bounds (grid is 40x40, but scaled for pixel precision)
             assert(x < 400 && y < 400, 'Out of bounds');

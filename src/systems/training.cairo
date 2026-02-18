@@ -31,7 +31,7 @@ pub struct TroopsCollected {
 #[dojo::contract]
 pub mod training_system {
     use super::{ITraining, TroopsTrainingStarted, TroopsCollected};
-    use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
+    use starknet::{get_caller_address, get_block_timestamp};
     use dojo::model::ModelStorage;
     use dojo::event::EventStorage;
 
@@ -50,6 +50,9 @@ pub mod training_system {
             let player_address = get_caller_address();
             let current_time = get_block_timestamp();
 
+            // Validate input
+            assert(quantity > 0, 'Quantity must be > 0');
+
             // Get player
             let mut player: Player = world.read_model(player_address);
             assert(player.town_hall_level > 0, 'Player not spawned');
@@ -60,11 +63,9 @@ pub mod training_system {
             assert(barracks.building_type == BuildingType::Barracks, 'Not a barracks');
             assert(!barracks.is_upgrading, 'Barracks upgrading');
 
-            // Check existing queue
+            // Check existing queue - must collect trained troops before starting new training
             let existing_queue: TrainingQueue = world.read_model((player_address, barracks_id));
-            if existing_queue.quantity > 0 {
-                assert(current_time >= existing_queue.finish_time, 'Queue not empty');
-            }
+            assert(existing_queue.quantity == 0, 'Collect troops first');
 
             // Get troop config
             let config = get_troop_config(troop_type);
