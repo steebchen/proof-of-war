@@ -67,6 +67,14 @@ function getBuildingStats(buildingType: number, level: number): string {
       return `Stores ${1000 * level} each`
     case BuildingType.ArmyCamp:
       return `Troop capacity: ${20 * level}`
+    case BuildingType.Barracks:
+      return `Trains troops`
+    case BuildingType.Cannon:
+      return `DMG: ${8 + level * 2} | Range: 9 | Rate: 0.8/s`
+    case BuildingType.ArcherTower:
+      return `DMG: ${6 + level} | Range: 10 | Rate: 1.0/s`
+    case BuildingType.Wall:
+      return `Blocks troops`
     default:
       return ''
   }
