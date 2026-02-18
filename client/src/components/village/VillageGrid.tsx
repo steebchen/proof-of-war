@@ -3,7 +3,7 @@ import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
 import { useDojo } from '../../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
-import { dojoConfig, BuildingType, BUILDING_INFO } from '../../config/dojoConfig'
+import { dojoConfig, BuildingType, BUILDING_INFO, NO_FEE_DETAILS } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -439,14 +439,7 @@ export function VillageGrid() {
     isDragging.current = false
   }, [])
 
-  // Skip fee estimation on Katana dev (block timestamp can be stale)
-  const noFeeDetails = {
-    resourceBounds: {
-      l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
-      l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
-      l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
-    },
-  }
+  const noFeeDetails = NO_FEE_DETAILS
 
   // Upgrade building on-chain with optimistic update
   const handleUpgrade = useCallback(async (buildingId: number) => {

@@ -42,6 +42,15 @@ export const BUILDING_INFO: Record<BuildingType, { name: string; color: string; 
   [BuildingType.Wall]: { name: 'Wall', color: '#808080', width: 1, height: 1, cost: { diamond: 50, gas: 0 } },
 }
 
+// Skip fee estimation on Katana dev (block timestamp can be stale)
+export const NO_FEE_DETAILS = {
+  resourceBounds: {
+    l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
+    l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
+    l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
+  },
+}
+
 // Troop types
 export enum TroopType {
   Barbarian = 0,

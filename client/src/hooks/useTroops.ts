@@ -1,16 +1,8 @@
 import { useDojo } from '../providers/DojoProvider'
 import { useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { TroopType, TROOP_INFO, BuildingType, dojoConfig } from '../config/dojoConfig'
+import { TroopType, TROOP_INFO, BuildingType, dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
 import { useResources } from './useResources'
-
-const noFeeDetails = {
-  resourceBounds: {
-    l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
-    l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
-    l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
-  },
-}
 
 export function useTroops() {
   const { army, setArmy, buildings } = useDojo()
@@ -66,7 +58,7 @@ export function useTroops() {
           entrypoint: 'train_troops',
           calldata: [barracks.buildingId, troopType, quantity],
         },
-      ], noFeeDetails)
+      ], NO_FEE_DETAILS)
       console.log('Training started on-chain')
       return true
     } catch (error) {
@@ -86,7 +78,7 @@ export function useTroops() {
           entrypoint: 'collect_trained_troops',
           calldata: [barracksId],
         },
-      ], noFeeDetails)
+      ], NO_FEE_DETAILS)
       console.log('Troops collected on-chain')
       return true
     } catch (error) {

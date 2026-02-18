@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { TroopType, dojoConfig } from '../config/dojoConfig'
+import { TroopType, dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
 import { useDojo } from '../providers/DojoProvider'
 
 export interface BattleState {
@@ -11,14 +11,6 @@ export interface BattleState {
   diamondStolen: bigint
   gasStolen: bigint
   tickCount: number
-}
-
-const noFeeDetails = {
-  resourceBounds: {
-    l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
-    l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
-    l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
-  },
 }
 
 export function useAttack() {
@@ -39,7 +31,7 @@ export function useAttack() {
           entrypoint: 'start_attack',
           calldata: [defenderAddress],
         },
-      ], noFeeDetails)
+      ], NO_FEE_DETAILS)
 
       // Fetch the battle counter to get the battle ID
       const battleId = await fetchBattleData()
@@ -73,7 +65,7 @@ export function useAttack() {
           entrypoint: 'deploy_troop',
           calldata: [battleId, troopType, x, y],
         },
-      ], noFeeDetails)
+      ], NO_FEE_DETAILS)
 
       // Update battle status
       if (currentBattle.status === 'preparing') {
@@ -100,7 +92,7 @@ export function useAttack() {
           entrypoint: 'resolve_battle',
           calldata: [battleId],
         },
-      ], noFeeDetails)
+      ], NO_FEE_DETAILS)
 
       // Fetch final battle state from Torii
       const finalBattle = await fetchBattleData(battleId)

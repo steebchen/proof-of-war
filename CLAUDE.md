@@ -72,6 +72,10 @@ Runs on localhost:5173, accessible via https://clash.localtest.me/
 - Building System: `0x94e3dd61721e6f9847e6f7a09bf8664b42a7cf965a367e0cce83958db53693`
 - Village System: `0x2bf054cb09539f5417a280b0606def19ce156865420755a29528d04376c7bcc`
 
+## Screenshots
+
+- Always save screenshots (Playwright MCP or otherwise) to the `.playwright-mcp/` directory, never the project root.
+
 ## SDK API (Dojo SDK v1.0.4)
 - `sdk.getEntities({ query: queryBuilder })` - query is a `ToriiQueryBuilder` instance (NOT `.build()`)
 - `sdk.subscribeEntityQuery({ query: queryBuilder, callback })` - returns `[ToriiResponse, Subscription]`

@@ -8,7 +8,7 @@ import { TrainPanel } from './components/army/TrainPanel'
 import { AttackScreen } from './components/attack/AttackScreen'
 import { BattleResult } from './components/attack/BattleResult'
 import { useAttack } from './hooks/useAttack'
-import { dojoConfig } from './config/dojoConfig'
+import { dojoConfig, NO_FEE_DETAILS } from './config/dojoConfig'
 
 function App() {
   const { address, isConnected, account } = useAccount()
@@ -79,7 +79,7 @@ function App() {
           entrypoint: 'spawn',
           calldata: [username],
         },
-      ])
+      ], NO_FEE_DETAILS)
       console.log('Spawn successful')
 
       // Set optimistic local state after successful spawn

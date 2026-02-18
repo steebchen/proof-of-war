@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useDojo, Building } from '../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
 import { BUILDING_SIZES } from '../utils/constants'
-import { dojoConfig } from '../config/dojoConfig'
+import { dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
 import { canBuildMore } from '../utils/buildingLimits'
 
 export function useBuildings() {
@@ -103,7 +103,7 @@ export function useBuildings() {
           entrypoint: 'place_building',
           calldata: [selectedBuildingType, x, y],
         },
-      ])
+      ], NO_FEE_DETAILS)
       console.log('Building placed on-chain successfully')
     } catch (error) {
       console.error('Failed to place building on-chain:', error)

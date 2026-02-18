@@ -1,7 +1,7 @@
 import { useDojo } from '../providers/DojoProvider'
 import { useCallback, useState, useEffect, useRef } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { dojoConfig, BuildingType } from '../config/dojoConfig'
+import { dojoConfig, BuildingType, NO_FEE_DETAILS } from '../config/dojoConfig'
 
 // Must match Cairo RESOURCE_PRODUCTION_PER_MIN
 const RESOURCE_PRODUCTION_PER_MIN = 10
@@ -77,7 +77,7 @@ export function useResources() {
           entrypoint: 'collect_all_resources',
           calldata: [],
         },
-      ])
+      ], NO_FEE_DETAILS)
       // Mark local collect time so estimates reset immediately
       localCollectTime.current = Math.floor(Date.now() / 1000)
       // Force pending to zero right away
