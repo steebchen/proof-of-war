@@ -9,7 +9,7 @@ export function Header() {
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
   const { diamond, gas, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
-  const { player, isConnected: toriiConnected, fetchBattleHistory } = useDojo()
+  const { player, army, isConnected: toriiConnected, fetchBattleHistory } = useDojo()
   const [attackNotification, setAttackNotification] = useState<BattleRecord | null>(null)
   const checkedRef = useRef(false)
 
@@ -67,6 +67,14 @@ export function Header() {
                 {(player.freeBuilders ?? 0)}/{(player.totalBuilders ?? 1)}
               </span>
             </div>
+            {army && army.maxCapacity > 0 && (
+              <div style={styles.resource} title={`Barbarians: ${army.barbarians}, Archers: ${army.archers}`}>
+                <span style={{ ...styles.resourceIcon, backgroundColor: '#e74c3c' }}>A</span>
+                <span style={styles.resourceValue}>
+                  {army.totalSpaceUsed}/{army.maxCapacity}
+                </span>
+              </div>
+            )}
             <div style={{ position: 'relative' }}>
               <button
                 style={{
