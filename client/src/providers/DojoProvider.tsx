@@ -131,29 +131,29 @@ function transformPlayer(data: ClashSchemaType['clash']['Player'], address: stri
   return {
     address,
     username: hexToString(data.username),
-    diamond: BigInt(data.diamond || '0'),
-    gas: BigInt(data.gas || '0'),
-    trophies: parseInt(data.trophies || '0', 10),
-    townHallLevel: parseInt(data.town_hall_level || '1', 10),
-    buildingCount: parseInt(data.building_count || '0', 10),
-    totalBuilders: parseInt(data.total_builders || '1', 10),
-    freeBuilders: parseInt(data.free_builders || '1', 10),
-    maxBuilders: parseInt(data.max_builders || '1', 10),
+    diamond: BigInt(data.diamond ?? '0'),
+    gas: BigInt(data.gas ?? '0'),
+    trophies: parseInt(data.trophies ?? '0', 10),
+    townHallLevel: parseInt(data.town_hall_level ?? '1', 10),
+    buildingCount: parseInt(data.building_count ?? '0', 10),
+    totalBuilders: parseInt(data.total_builders ?? '1', 10),
+    freeBuilders: parseInt(data.free_builders ?? '1', 10),
+    maxBuilders: parseInt(data.max_builders ?? '1', 10),
   }
 }
 
 function transformBuilding(data: ClashSchemaType['clash']['Building']): Building {
   return {
     owner: data.owner,
-    buildingId: parseInt(data.building_id || '0', 10),
+    buildingId: parseInt(data.building_id ?? '0', 10),
     buildingType: parseBuildingType(data.building_type),
-    level: parseInt(data.level || '1', 10),
-    x: parseInt(data.x || '0', 10),
-    y: parseInt(data.y || '0', 10),
-    health: parseInt(data.health || '100', 10),
+    level: parseInt(data.level ?? '1', 10),
+    x: parseInt(data.x ?? '0', 10),
+    y: parseInt(data.y ?? '0', 10),
+    health: parseInt(data.health ?? '100', 10),
     isUpgrading: data.is_upgrading ?? false,
-    upgradeFinishTime: BigInt(data.upgrade_finish_time || '0'),
-    lastCollectedAt: BigInt(data.last_collected_at || '0'),
+    upgradeFinishTime: BigInt(data.upgrade_finish_time ?? '0'),
+    lastCollectedAt: BigInt(data.last_collected_at ?? '0'),
   }
 }
 
@@ -161,7 +161,7 @@ function transformBuilderQueue(data: ClashSchemaType['clash']['BuilderQueue']): 
   return {
     owner: data.owner,
     isTraining: data.is_training ?? false,
-    finishTime: BigInt(data.finish_time || '0'),
+    finishTime: BigInt(data.finish_time ?? '0'),
   }
 }
 

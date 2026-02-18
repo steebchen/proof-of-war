@@ -13,7 +13,8 @@ export function useBuildings() {
     setIsPlacing,
     selectedBuildingType,
     setSelectedBuildingType,
-    player
+    player,
+    setPlayer
   } = useDojo()
   const { account } = useAccount()
 
@@ -75,7 +76,7 @@ export function useBuildings() {
     // Optimistically add building to local state
     const newBuilding: Building = {
       owner: account.address,
-      buildingId: buildings.length + 2, // +2 because town hall is 1
+      buildingId: (player?.buildingCount ?? buildings.length) + 1,
       buildingType: selectedBuildingType,
       level: 1,
       x,
@@ -87,6 +88,9 @@ export function useBuildings() {
     }
 
     setBuildings([...buildings, newBuilding])
+    if (player) {
+      setPlayer({ ...player, buildingCount: (player.buildingCount ?? 0) + 1 })
+    }
     cancelPlacing()
 
     // Call contract (use building system address, not world address)
@@ -113,7 +117,7 @@ export function useBuildings() {
     }
 
     return true
-  }, [account, selectedBuildingType, buildings, townHallLevel, checkCollision, setBuildings, cancelPlacing])
+  }, [account, selectedBuildingType, buildings, townHallLevel, player, checkCollision, setBuildings, setPlayer, cancelPlacing])
 
   const getBuildingAt = useCallback((x: number, y: number): Building | undefined => {
     for (const building of buildings) {
