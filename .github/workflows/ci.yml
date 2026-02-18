@@ -6,19 +6,25 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  SOZO_VERSION: "1.8.6"
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Dojo
+      - name: Install sozo
         run: |
-          curl -L https://install.dojoengine.org | bash
-          /home/runner/.dojo/bin/dojoup -v v1.8.6
+          curl -L "https://github.com/dojoengine/dojo/releases/download/sozo/v${SOZO_VERSION}/sozo_v${SOZO_VERSION}_linux_amd64.tar.gz" -o sozo.tar.gz
+          tar -xzf sozo.tar.gz
+          chmod +x sozo
+          sudo mv sozo /usr/local/bin/
+          sozo --version
 
       - name: Build
-        run: /home/runner/.dojo/bin/sozo build
+        run: sozo build
 
       - name: Test
-        run: /home/runner/.dojo/bin/sozo test
+        run: sozo test
