@@ -56,7 +56,7 @@ pub mod combat_system {
     };
     use clash_prototype::utils::config::{
         BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE,
-        TICKS_PER_BATTLE, get_defense_stats
+        TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats
     };
 
     #[abi(embed_v0)]
@@ -74,6 +74,9 @@ pub mod combat_system {
 
             assert(attacker_player.town_hall_level > 0, 'Attacker not spawned');
             assert(defender_player.town_hall_level > 0, 'Defender not found');
+
+            // Check defender is not shielded
+            assert(defender_player.shield_until < current_time, 'Defender is shielded');
 
             // Check attacker has troops
             let attacker_army: Army = world.read_model(attacker);
@@ -484,6 +487,10 @@ pub mod combat_system {
                 }
                 defender_player.trophies += loss;
             }
+
+            // Grant shield to defender after being attacked
+            let current_time = get_block_timestamp();
+            defender_player.shield_until = current_time + SHIELD_DURATION;
 
             // Update battle status
             battle.status = BattleStatus::Ended;

@@ -15,4 +15,5 @@ pub struct Player {
     pub total_builders: u8,
     pub free_builders: u8,
     pub max_builders: u8,
+    pub shield_until: u64,
 }

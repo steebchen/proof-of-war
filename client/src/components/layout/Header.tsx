@@ -81,9 +81,16 @@ export function Header() {
               {address?.slice(0, 6)}...{address?.slice(-4)}
             </span>
             {player && (
-              <span style={styles.trophies}>
-                {player.trophies} Trophies
-              </span>
+              <>
+                <span style={styles.trophies}>
+                  {player.trophies} Trophies
+                </span>
+                {player.shieldUntil > BigInt(Math.floor(Date.now() / 1000)) && (
+                  <span style={styles.shield}>
+                    Shield Active
+                  </span>
+                )}
+              </>
             )}
             <button style={styles.disconnectBtn} onClick={() => disconnect()}>
               Disconnect
@@ -206,6 +213,14 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 8px',
     backgroundColor: 'rgba(255, 215, 0, 0.2)',
     borderRadius: '4px',
+  },
+  shield: {
+    fontSize: '12px',
+    color: '#3498db',
+    padding: '4px 8px',
+    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+    borderRadius: '4px',
+    fontWeight: 'bold',
   },
   disconnectBtn: {
     padding: '6px 12px',

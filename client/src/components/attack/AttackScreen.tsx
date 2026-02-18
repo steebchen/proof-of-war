@@ -773,33 +773,40 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
               </div>
             ) : (
               <div style={styles.opponentList}>
-                {opponents.map(opponent => (
-                  <button
-                    key={opponent.address}
-                    style={{
-                      ...styles.opponentCard,
-                      border: targetAddress === opponent.address ? '2px solid #e74c3c' : '2px solid #0f3460',
-                      opacity: pending ? 0.6 : 1,
-                    }}
-                    onClick={() => setTargetAddress(opponent.address)}
-                    disabled={pending}
-                  >
-                    <div style={styles.opponentInfo}>
-                      <span style={styles.opponentName}>{opponent.username || 'Unknown'}</span>
-                      <span style={styles.opponentAddress}>
-                        {opponent.address.slice(0, 6)}...{opponent.address.slice(-4)}
-                      </span>
-                    </div>
-                    <div style={styles.opponentStats}>
-                      <span style={styles.statBadge} title="Trophies">
-                        {opponent.trophies}
-                      </span>
-                      <span style={styles.statBadgeTH} title="Town Hall Level">
-                        TH{opponent.townHallLevel}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+                {opponents.map(opponent => {
+                  const isShielded = opponent.shieldUntil > BigInt(Math.floor(Date.now() / 1000))
+                  return (
+                    <button
+                      key={opponent.address}
+                      style={{
+                        ...styles.opponentCard,
+                        border: targetAddress === opponent.address ? '2px solid #e74c3c' : '2px solid #0f3460',
+                        opacity: isShielded ? 0.4 : pending ? 0.6 : 1,
+                        cursor: isShielded ? 'not-allowed' : 'pointer',
+                      }}
+                      onClick={() => !isShielded && setTargetAddress(opponent.address)}
+                      disabled={pending || isShielded}
+                    >
+                      <div style={styles.opponentInfo}>
+                        <span style={styles.opponentName}>
+                          {opponent.username || 'Unknown'}
+                          {isShielded && <span style={styles.shieldBadge}>SHIELDED</span>}
+                        </span>
+                        <span style={styles.opponentAddress}>
+                          {opponent.address.slice(0, 6)}...{opponent.address.slice(-4)}
+                        </span>
+                      </div>
+                      <div style={styles.opponentStats}>
+                        <span style={styles.statBadge} title="Trophies">
+                          {opponent.trophies}
+                        </span>
+                        <span style={styles.statBadgeTH} title="Town Hall Level">
+                          TH{opponent.townHallLevel}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
             {targetAddress && (
@@ -1002,6 +1009,17 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '12px',
     fontWeight: 'bold',
     fontSize: '13px',
+  },
+  shieldBadge: {
+    display: 'inline-block',
+    marginLeft: '8px',
+    padding: '2px 6px',
+    backgroundColor: '#3498db',
+    color: '#fff',
+    borderRadius: '4px',
+    fontSize: '10px',
+    fontWeight: 'bold',
+    verticalAlign: 'middle',
   },
   statBadgeTH: {
     padding: '4px 10px',

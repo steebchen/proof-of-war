@@ -182,6 +182,9 @@ pub fn get_upgrade_time(building_type: BuildingType, level: u8) -> u64 {
     base_time * level.into()
 }
 
+// Shield duration after being attacked (in seconds)
+pub const SHIELD_DURATION: u64 = 14400; // 4 hours
+
 // Battle duration in seconds
 pub const BATTLE_DURATION: u64 = 180; // 3 minutes
 
