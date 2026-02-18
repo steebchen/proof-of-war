@@ -114,12 +114,8 @@ function getWorkerTrainingTime(totalWorkers: number): number {
   }
 }
 
-// Buffer (seconds) to account for client clock being ahead of on-chain block timestamp
-const UPGRADE_BUFFER = 5
-
 function getUpgradeRemaining(upgradeFinishTime: bigint, now: number): number {
-  const finish = Number(upgradeFinishTime) + UPGRADE_BUFFER
-  return Math.max(0, finish - now)
+  return Math.max(0, Number(upgradeFinishTime) - now)
 }
 
 
