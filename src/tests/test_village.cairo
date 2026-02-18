@@ -18,6 +18,7 @@ use clash_prototype::systems::training::{training_system, ITrainingDispatcher, I
 use clash_prototype::systems::resource::{resource_system, IResourceDispatcher, IResourceDispatcherTrait, e_ResourcesCollected};
 use clash_prototype::systems::combat::{combat_system, e_BattleStarted, e_TroopDeployed, e_BattleEnded};
 use clash_prototype::models::troop::TroopType;
+use clash_prototype::systems::combat::{ICombatDispatcher, ICombatDispatcherTrait};
 use clash_prototype::utils::config::{STARTING_DIAMOND, STARTING_GAS};
 
 fn namespace_def() -> NamespaceDef {
@@ -512,4 +513,124 @@ fn test_train_zero_troops() {
 
     // Try to train 0 troops - should panic
     training_dispatcher.train_troops(3, TroopType::Barbarian, 0);
+}
+
+#[test]
+fn test_shield_after_battle() {
+    let attacker: ContractAddress = 'attacker'.try_into().unwrap();
+    let defender: ContractAddress = 'defender'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    let (training_address, _) = world.dns(@"training_system").unwrap();
+    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
+
+    let (combat_address, _) = world.dns(@"combat_system").unwrap();
+    let combat_dispatcher = ICombatDispatcher { contract_address: combat_address };
+
+    // Spawn both players
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+    village_dispatcher.spawn('Attacker');
+
+    starknet::testing::set_contract_address(defender);
+    starknet::testing::set_account_contract_address(defender);
+    village_dispatcher.spawn('Defender');
+
+    // Give attacker an army camp and barracks, then train troops
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    building_dispatcher.place_building(BuildingType::ArmyCamp, 0, 0);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Barracks, 5, 5);
+    starknet::testing::set_block_timestamp(200);
+    building_dispatcher.finish_upgrade(3);
+
+    // Train barbarians
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
+    starknet::testing::set_block_timestamp(300);
+    training_dispatcher.collect_trained_troops(3);
+
+    // Start attack (first battle gets id 0)
+    combat_dispatcher.start_attack(defender);
+
+    // Deploy a troop (at edge zone)
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
+
+    // Resolve battle
+    combat_dispatcher.resolve_battle(0);
+
+    // Verify defender got a shield
+    let defender_player: Player = world.read_model(defender);
+    assert(defender_player.shield_until > 300, 'Shield should be set');
+
+    // Verify shield_until = current_time + 14400
+    assert(defender_player.shield_until == 300 + 14400, 'Wrong shield duration');
+}
+
+#[test]
+#[should_panic(expected: ('Defender is shielded', 'ENTRYPOINT_FAILED'))]
+fn test_cannot_attack_shielded_player() {
+    let attacker: ContractAddress = 'attacker'.try_into().unwrap();
+    let defender: ContractAddress = 'defender'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    let (training_address, _) = world.dns(@"training_system").unwrap();
+    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
+
+    let (combat_address, _) = world.dns(@"combat_system").unwrap();
+    let combat_dispatcher = ICombatDispatcher { contract_address: combat_address };
+
+    // Spawn both players
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+    village_dispatcher.spawn('Attacker');
+
+    starknet::testing::set_contract_address(defender);
+    starknet::testing::set_account_contract_address(defender);
+    village_dispatcher.spawn('Defender');
+
+    // Give attacker army
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    building_dispatcher.place_building(BuildingType::ArmyCamp, 0, 0);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Barracks, 5, 5);
+    starknet::testing::set_block_timestamp(200);
+    building_dispatcher.finish_upgrade(3);
+
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
+    starknet::testing::set_block_timestamp(500);
+    training_dispatcher.collect_trained_troops(3);
+
+    // First attack (battle_id = 0)
+    combat_dispatcher.start_attack(defender);
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
+    combat_dispatcher.resolve_battle(0);
+
+    // Try to attack again while shielded — should panic
+    combat_dispatcher.start_attack(defender);
 }
