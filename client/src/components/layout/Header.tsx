@@ -55,11 +55,21 @@ export function Header() {
           <>
             <div style={styles.resource}>
               <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.diamond }}>D</span>
-              <span style={styles.resourceValue}>{formatNumber(diamond)}</span>
+              <span style={styles.resourceValue}>
+                {formatNumber(diamond)}
+                {pending.diamond > 0 && (
+                  <span style={styles.pendingResource}>+{pending.diamond}</span>
+                )}
+              </span>
             </div>
             <div style={styles.resource}>
               <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.gas }}>G</span>
-              <span style={styles.resourceValue}>{formatNumber(gas)}</span>
+              <span style={styles.resourceValue}>
+                {formatNumber(gas)}
+                {pending.gas > 0 && (
+                  <span style={styles.pendingResource}>+{pending.gas}</span>
+                )}
+              </span>
             </div>
             <div style={styles.resource}>
               <span style={{ ...styles.resourceIcon, backgroundColor: '#e67e22' }}>W</span>
@@ -210,6 +220,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '18px',
     fontWeight: 'bold',
     minWidth: '60px',
+  },
+  pendingResource: {
+    fontSize: '11px',
+    color: '#4CAF50',
+    marginLeft: '4px',
+    fontWeight: 'normal',
   },
   collectBtn: {
     padding: '8px 16px',
