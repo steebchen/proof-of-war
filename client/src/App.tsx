@@ -237,45 +237,6 @@ function App() {
         />
       )}
 
-      {/* Dev mode: spawn/respawn button */}
-      {isConnected && (
-        <button
-          style={styles.devSpawnBtn}
-          onClick={async () => {
-            if (isSpawning || !account) return
-            setIsSpawning(true)
-            try {
-              // Despawn first (reset on-chain state)
-              if (player) {
-                try {
-                  await account.execute([{
-                    contractAddress: dojoConfig.villageSystemAddress,
-                    entrypoint: 'despawn',
-                    calldata: [],
-                  }], NO_FEE_DETAILS)
-                  console.log('Despawn successful')
-                  // Wait for Katana to process the despawn before spawning
-                  await new Promise(r => setTimeout(r, 500))
-                } catch (e) {
-                  console.log('Despawn failed (may not exist):', e)
-                }
-              }
-              // Clear local state
-              setPlayer(null)
-              setBuildings([])
-              setArmy(null)
-              hasFetchedRef.current = false
-              // Spawn fresh
-              await handleSpawn()
-            } finally {
-              setIsSpawning(false)
-            }
-          }}
-          disabled={isSpawning}
-        >
-          {isSpawning ? 'Spawning...' : player ? 'Dev: Respawn' : 'Dev: Spawn'}
-        </button>
-      )}
     </div>
   )
 }
@@ -334,21 +295,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontWeight: 'bold',
     fontSize: '18px',
-  },
-  devSpawnBtn: {
-    position: 'fixed',
-    top: '56px',
-    left: '16px',
-    padding: '6px 12px',
-    backgroundColor: '#e67e22',
-    color: '#fff',
-    border: '2px solid #d35400',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    fontSize: '11px',
-    zIndex: 200,
-    opacity: 0.8,
   },
   spinner: {
     width: '40px',

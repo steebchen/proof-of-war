@@ -267,7 +267,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         const playerData = entity.models?.clash?.Player
         if (playerData) {
           const transformed = transformPlayer(playerData as ClashSchemaType['clash']['Player'], address)
-          // After despawn, player entity still exists in Torii with town_hall_level=0
+          // Player entity may exist with town_hall_level=0 if not yet spawned
           if (transformed.townHallLevel === 0) {
             break
           }
@@ -304,7 +304,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         const buildingData = entity.models?.clash?.Building
         if (buildingData) {
           const b = transformBuilding(buildingData as ClashSchemaType['clash']['Building'])
-          // Filter out zeroed buildings (from despawn)
+          // Filter out zeroed buildings (level 0 and not under construction)
           if (b.level > 0 || b.isUpgrading) {
             fetchedBuildings.push(b)
           }
@@ -401,7 +401,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
               const playerData = entity.models?.clash?.Player
               if (playerData) {
                 const transformed = transformPlayer(playerData as ClashSchemaType['clash']['Player'], address)
-                // After despawn, player entity has town_hall_level=0
+                // Player with town_hall_level=0 is not spawned
                 if (transformed.townHallLevel === 0) {
                   setPlayer(null)
                   setBuildings([])
@@ -415,7 +415,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
               const buildingData = entity.models?.clash?.Building
               if (buildingData) {
                 const newBuilding = transformBuilding(buildingData as ClashSchemaType['clash']['Building'])
-                // After despawn, buildings are zeroed out (level=0, not upgrading)
+                // Remove zeroed buildings (level=0, not upgrading)
                 if (newBuilding.level === 0 && !newBuilding.isUpgrading) {
                   setBuildings(prev => prev.filter(b => b.buildingId !== newBuilding.buildingId))
                 } else {
