@@ -36,6 +36,20 @@ export function BattleResult({ battle, onClose }: BattleResultProps) {
           </div>
         </div>
 
+        <div style={styles.stats}>
+          <div style={styles.stat}>
+            <span style={styles.label}>Trophies</span>
+            <span style={{ ...styles.value, color: battle.trophiesChange >= 0 ? '#27ae60' : '#e74c3c' }}>
+              {battle.trophiesChange >= 0 ? '+' : ''}{battle.trophiesChange}
+            </span>
+          </div>
+
+          <div style={styles.stat}>
+            <span style={styles.label}>Troops Deployed</span>
+            <span style={styles.value}>{battle.troopsDeployed}</span>
+          </div>
+        </div>
+
         <div style={styles.stars}>
           {[1, 2, 3].map((star) => (
             <span

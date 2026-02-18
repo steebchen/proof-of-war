@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
 import { TroopType, dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
-import { useDojo } from '../providers/DojoProvider'
+import { useDojo, BattleResultData } from '../providers/DojoProvider'
 
 export interface BattleState {
   battleId: number
@@ -11,6 +11,8 @@ export interface BattleState {
   diamondStolen: bigint
   gasStolen: bigint
   tickCount: number
+  trophiesChange: number
+  troopsDeployed: number
 }
 
 export function useAttack() {
@@ -34,7 +36,8 @@ export function useAttack() {
       ], NO_FEE_DETAILS)
 
       // Fetch the battle counter to get the battle ID
-      const battleId = await fetchBattleData()
+      const result = await fetchBattleData()
+      const battleId = typeof result === 'number' ? result : null
       if (battleId !== null) {
         const battle: BattleState = {
           battleId,
@@ -44,6 +47,8 @@ export function useAttack() {
           diamondStolen: BigInt(0),
           gasStolen: BigInt(0),
           tickCount: 0,
+          trophiesChange: 0,
+          troopsDeployed: 0,
         }
         setCurrentBattle(battle)
       }
@@ -97,10 +102,15 @@ export function useAttack() {
       // Fetch final battle state from Torii
       const finalBattle = await fetchBattleData(battleId)
       if (finalBattle !== null) {
+        const data = finalBattle as BattleResultData
         const endedBattle: BattleState = {
           ...currentBattle,
           status: 'ended',
-          destructionPercent: finalBattle as number, // Will be replaced with proper data
+          destructionPercent: data.destructionPercent,
+          diamondStolen: data.diamondStolen,
+          gasStolen: data.gasStolen,
+          trophiesChange: data.trophiesChange,
+          troopsDeployed: data.troopsDeployed,
         }
         setCurrentBattle(endedBattle)
         setIsAttacking(false)

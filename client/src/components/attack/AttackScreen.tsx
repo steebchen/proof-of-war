@@ -623,6 +623,8 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
         diamondStolen: currentBattle.diamondStolen,
         gasStolen: currentBattle.gasStolen,
         tickCount: snapshots.length - 1,
+        trophiesChange: currentBattle.trophiesChange,
+        troopsDeployed: currentBattle.troopsDeployed,
       })
     } catch (error) {
       console.error('Resolve failed:', error)

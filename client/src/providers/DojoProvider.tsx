@@ -60,6 +60,14 @@ interface Subscription {
   free(): void
 }
 
+export interface BattleResultData {
+  destructionPercent: number
+  diamondStolen: bigint
+  gasStolen: bigint
+  trophiesChange: number
+  troopsDeployed: number
+}
+
 export interface BattleRecord {
   battleId: number
   attacker: string
@@ -90,7 +98,7 @@ interface DojoContextType {
   fetchPlayerData: (address: string) => Promise<boolean>
   fetchAllPlayers: (excludeAddress?: string) => Promise<Player[]>
   fetchDefenderBuildings: (address: string) => Promise<Building[]>
-  fetchBattleData: (battleId?: number) => Promise<number | null>
+  fetchBattleData: (battleId?: number) => Promise<BattleResultData | number | null>
   fetchBattleHistory: (address: string) => Promise<BattleRecord[]>
   refreshData: () => void
   // Building placement state (shared across components)
@@ -596,12 +604,12 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   }, [sdk])
 
   // Fetch battle data (battle counter for latest ID, or specific battle)
-  const fetchBattleData = useCallback(async (battleId?: number): Promise<number | null> => {
+  const fetchBattleData = useCallback(async (battleId?: number): Promise<BattleResultData | number | null> => {
     if (!sdk) return null
 
     try {
       if (battleId !== undefined) {
-        // Fetch specific battle
+        // Fetch specific battle with full data
         const battleQuery = new ToriiQueryBuilder<ClashSchemaType>()
           .withClause(
             KeysClause(
@@ -616,7 +624,13 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         for (const entity of entities) {
           const battleData = entity.models?.clash?.Battle
           if (battleData) {
-            return parseInt(battleData.destruction_percent || '0', 10)
+            return {
+              destructionPercent: parseInt(battleData.destruction_percent || '0', 10),
+              diamondStolen: BigInt(battleData.diamond_stolen || '0'),
+              gasStolen: BigInt(battleData.gas_stolen || '0'),
+              trophiesChange: parseInt(battleData.attacker_trophies_change || '0', 10),
+              troopsDeployed: parseInt(battleData.deployed_troop_count || '0', 10),
+            }
           }
         }
         return null
