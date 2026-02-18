@@ -55,8 +55,9 @@ pub fn get_building_cost(building_type: BuildingType, level: u8) -> BuildingCost
     }
 }
 
-// Building health at level 1
+// Building health by level (level must be >= 1)
 pub fn get_building_health(building_type: BuildingType, level: u8) -> u32 {
+    assert(level > 0, 'Level must be > 0');
     let base_health: u32 = match building_type {
         BuildingType::TownHall => 1500,
         BuildingType::DiamondMine => 400,

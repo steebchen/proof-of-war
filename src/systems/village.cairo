@@ -17,13 +17,14 @@ pub struct PlayerSpawned {
 #[dojo::contract]
 pub mod village {
     use super::{IVillage, PlayerSpawned};
-    use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
+    use starknet::{get_caller_address, get_block_timestamp};
     use dojo::model::ModelStorage;
     use dojo::event::EventStorage;
 
     use clash_prototype::models::player::Player;
     use clash_prototype::models::building::{Building, BuildingType};
-    use clash_prototype::models::army::Army;
+    use clash_prototype::models::army::{Army, TrainingQueue, BuilderQueue};
+    use clash_prototype::models::troop::TroopType;
     use clash_prototype::utils::config::{
         STARTING_DIAMOND, STARTING_GAS, get_building_health
     };
@@ -34,6 +35,9 @@ pub mod village {
             let mut world = self.world_default();
             let player_address = get_caller_address();
             let current_time = get_block_timestamp();
+
+            // Validate input
+            assert(username != 0, 'Username cannot be empty');
 
             // Check if player already exists
             let existing_player: Player = world.read_model(player_address);
@@ -95,12 +99,27 @@ pub mod village {
             let player: Player = world.read_model(player_address);
             assert(player.town_hall_level > 0, 'Player not spawned');
 
-            // Delete all buildings
+            // Delete all buildings and their training queues
             let mut i: u32 = 1;
             loop {
                 if i > player.building_count {
                     break;
                 }
+
+                let building: Building = world.read_model((player_address, i));
+
+                // Clear training queue if this was a barracks
+                if building.building_type == BuildingType::Barracks {
+                    let empty_queue = TrainingQueue {
+                        owner: player_address,
+                        barracks_id: i,
+                        troop_type: TroopType::Barbarian,
+                        quantity: 0,
+                        finish_time: 0,
+                    };
+                    world.write_model(@empty_queue);
+                }
+
                 let empty_building = Building {
                     owner: player_address,
                     building_id: i,
@@ -116,6 +135,14 @@ pub mod village {
                 world.write_model(@empty_building);
                 i += 1;
             };
+
+            // Clear builder queue
+            let empty_builder_queue = BuilderQueue {
+                owner: player_address,
+                is_training: false,
+                finish_time: 0,
+            };
+            world.write_model(@empty_builder_queue);
 
             // Reset player
             let empty_player = Player {
