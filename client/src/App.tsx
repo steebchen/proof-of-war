@@ -8,6 +8,7 @@ import { TrainPanel } from './components/army/TrainPanel'
 import { AttackScreen } from './components/attack/AttackScreen'
 import { BattleResult } from './components/attack/BattleResult'
 import { Leaderboard } from './components/layout/Leaderboard'
+import { BattleLog } from './components/attack/BattleLog'
 import { useAttack } from './hooks/useAttack'
 import { dojoConfig, NO_FEE_DETAILS } from './config/dojoConfig'
 
@@ -25,6 +26,7 @@ function App() {
   const [showArmy, setShowArmy] = useState(false)
   const [showAttack, setShowAttack] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showBattleLog, setShowBattleLog] = useState(false)
   const [isSpawning, setIsSpawning] = useState(false)
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false)
   const hasFetchedRef = useRef(false)
@@ -217,12 +219,15 @@ function App() {
           onOpenArmy={() => setShowArmy(true)}
           onOpenAttack={() => setShowAttack(true)}
           onOpenLeaderboard={() => setShowLeaderboard(true)}
+          onOpenBattleLog={() => setShowBattleLog(true)}
         />
       )}
 
       {showArmy && <TrainPanel onClose={() => setShowArmy(false)} />}
 
       {showLeaderboard && <Leaderboard onClose={() => setShowLeaderboard(false)} />}
+
+      {showBattleLog && <BattleLog onClose={() => setShowBattleLog(false)} />}
 
       {showAttack && (
         <AttackScreen

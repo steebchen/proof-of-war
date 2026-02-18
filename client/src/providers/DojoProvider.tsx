@@ -52,6 +52,19 @@ interface Subscription {
   free(): void
 }
 
+export interface BattleRecord {
+  battleId: number
+  attacker: string
+  defender: string
+  status: string
+  destructionPercent: number
+  diamondStolen: bigint
+  gasStolen: bigint
+  attackerTrophiesChange: number
+  defenderTrophiesChange: number
+  startedAt: bigint
+}
+
 interface DojoContextType {
   isConnected: boolean
   isLoading: boolean
@@ -68,6 +81,7 @@ interface DojoContextType {
   fetchAllPlayers: (excludeAddress?: string) => Promise<Player[]>
   fetchDefenderBuildings: (address: string) => Promise<Building[]>
   fetchBattleData: (battleId?: number) => Promise<number | null>
+  fetchBattleHistory: (address: string) => Promise<BattleRecord[]>
   refreshData: () => void
   // Building placement state (shared across components)
   isPlacing: boolean
@@ -588,6 +602,89 @@ export function DojoProvider({ children }: { children: ReactNode }) {
     }
   }, [sdk])
 
+  // Fetch battle history for a player (both as attacker and defender)
+  const fetchBattleHistory = useCallback(async (address: string): Promise<BattleRecord[]> => {
+    if (!sdk) return []
+
+    try {
+      const paddedAddress = addAddressPadding(address)
+      const battles: BattleRecord[] = []
+
+      // Query battles where player is attacker
+      const attackerQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          MemberClause(
+            MODELS.Battle,
+            'attacker',
+            'Eq',
+            paddedAddress
+          ).build()
+        )
+        .withLimit(50)
+
+      const attackerResponse = await sdk.getEntities({ query: attackerQuery })
+      for (const entity of attackerResponse.getItems()) {
+        const b = entity.models?.clash?.Battle
+        if (b && b.status !== 'Preparing') {
+          battles.push({
+            battleId: parseInt(b.battle_id || '0', 10),
+            attacker: b.attacker || '',
+            defender: b.defender || '',
+            status: typeof b.status === 'string' ? b.status : 'Ended',
+            destructionPercent: parseInt(b.destruction_percent || '0', 10),
+            diamondStolen: BigInt(b.diamond_stolen || '0'),
+            gasStolen: BigInt(b.gas_stolen || '0'),
+            attackerTrophiesChange: parseInt(b.attacker_trophies_change || '0', 10),
+            defenderTrophiesChange: parseInt(b.defender_trophies_change || '0', 10),
+            startedAt: BigInt(b.started_at || '0'),
+          })
+        }
+      }
+
+      // Query battles where player is defender
+      const defenderQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          MemberClause(
+            MODELS.Battle,
+            'defender',
+            'Eq',
+            paddedAddress
+          ).build()
+        )
+        .withLimit(50)
+
+      const defenderResponse = await sdk.getEntities({ query: defenderQuery })
+      for (const entity of defenderResponse.getItems()) {
+        const b = entity.models?.clash?.Battle
+        if (b && b.status !== 'Preparing') {
+          // Avoid duplicates (unlikely but safe)
+          const id = parseInt(b.battle_id || '0', 10)
+          if (!battles.find(existing => existing.battleId === id)) {
+            battles.push({
+              battleId: id,
+              attacker: b.attacker || '',
+              defender: b.defender || '',
+              status: typeof b.status === 'string' ? b.status : 'Ended',
+              destructionPercent: parseInt(b.destruction_percent || '0', 10),
+              diamondStolen: BigInt(b.diamond_stolen || '0'),
+              gasStolen: BigInt(b.gas_stolen || '0'),
+              attackerTrophiesChange: parseInt(b.attacker_trophies_change || '0', 10),
+              defenderTrophiesChange: parseInt(b.defender_trophies_change || '0', 10),
+              startedAt: BigInt(b.started_at || '0'),
+            })
+          }
+        }
+      }
+
+      // Sort by battle ID descending (newest first)
+      battles.sort((a, b) => b.battleId - a.battleId)
+      return battles
+    } catch (err) {
+      console.error('Failed to fetch battle history:', err)
+      return []
+    }
+  }, [sdk])
+
   const refreshData = useCallback(() => {
     if (player?.address) {
       fetchPlayerData(player.address)
@@ -612,6 +709,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         fetchAllPlayers,
         fetchDefenderBuildings,
         fetchBattleData,
+        fetchBattleHistory,
         refreshData,
         isPlacing,
         selectedBuildingType,
