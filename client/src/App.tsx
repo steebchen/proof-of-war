@@ -28,6 +28,7 @@ function App() {
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [showBattleLog, setShowBattleLog] = useState(false)
   const [isSpawning, setIsSpawning] = useState(false)
+  const [spawnUsername, setSpawnUsername] = useState('')
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false)
   const hasFetchedRef = useRef(false)
   const { currentBattle, cancelAttack } = useAttack()
@@ -66,16 +67,26 @@ function App() {
       })
   }, [isConnected, address, isToriiLoading, fetchPlayerData])
 
+  // Convert a string to felt252 hex (short string encoding, max 31 chars)
+  const stringToFelt252 = (str: string): string => {
+    const trimmed = str.slice(0, 31)
+    let hex = '0x'
+    for (let i = 0; i < trimmed.length; i++) {
+      hex += trimmed.charCodeAt(i).toString(16).padStart(2, '0')
+    }
+    return hex
+  }
+
   // Handle spawn (connect + initialize)
   const handleSpawn = async () => {
     if (!address || !account) return
 
+    const name = spawnUsername.trim() || 'Player'
+
     setIsSpawning(true)
 
     try {
-      // Call the village system spawn function with username
-      // Convert "Player" to felt252 (short string encoding)
-      const username = '0x506c61796572' // "Player" as felt252
+      const username = stringToFelt252(name)
       console.log('Calling spawn contract:', dojoConfig.villageSystemAddress)
       await account.execute([
         {
@@ -90,7 +101,7 @@ function App() {
       // The subscription will update with real data from Torii
       setPlayer({
         address,
-        username: 'Player',
+        username: name,
         diamond: BigInt(2000),
         gas: BigInt(1000),
         trophies: 0,
@@ -200,7 +211,16 @@ function App() {
         ) : !player ? (
           <div style={styles.spawnPrompt}>
             <h2>Welcome, Commander!</h2>
-            <p>Click Spawn to create your village</p>
+            <p>Choose a name and create your village</p>
+            <input
+              type="text"
+              placeholder="Enter your name..."
+              value={spawnUsername}
+              onChange={(e) => setSpawnUsername(e.target.value)}
+              maxLength={31}
+              style={styles.usernameInput}
+              onKeyDown={(e) => e.key === 'Enter' && handleSpawn()}
+            />
             <button
               style={{...styles.spawnBtn, opacity: isSpawning ? 0.7 : 1}}
               onClick={handleSpawn}
@@ -284,6 +304,18 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     padding: '48px',
     color: '#fff',
+  },
+  usernameInput: {
+    padding: '12px 16px',
+    fontSize: '16px',
+    borderRadius: '8px',
+    border: '2px solid #0f3460',
+    backgroundColor: '#16213e',
+    color: '#fff',
+    outline: 'none',
+    textAlign: 'center' as const,
+    width: '250px',
+    marginBottom: '8px',
   },
   spawnBtn: {
     marginTop: '24px',
