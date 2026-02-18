@@ -1,6 +1,7 @@
+import { useState, useEffect, useRef } from 'react'
 import { useAccount, useConnect, useDisconnect } from '@starknet-react/core'
 import { useResources } from '../../hooks/useResources'
-import { useDojo } from '../../providers/DojoProvider'
+import { useDojo, BattleRecord } from '../../providers/DojoProvider'
 import { COLORS } from '../../utils/constants'
 
 export function Header() {
@@ -8,7 +9,27 @@ export function Header() {
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
   const { diamond, gas, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
-  const { player, isConnected: toriiConnected } = useDojo()
+  const { player, isConnected: toriiConnected, fetchBattleHistory } = useDojo()
+  const [attackNotification, setAttackNotification] = useState<BattleRecord | null>(null)
+  const checkedRef = useRef(false)
+
+  // Check for recent attacks on player
+  useEffect(() => {
+    if (!address || !player || checkedRef.current) return
+    checkedRef.current = true
+
+    fetchBattleHistory(address).then(battles => {
+      // Find most recent ended battle where player was defender
+      const defense = battles.find(
+        b => b.defender.toLowerCase() === address.toLowerCase() && b.status !== 'Preparing'
+      )
+      if (defense) {
+        setAttackNotification(defense)
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => setAttackNotification(null), 10000)
+      }
+    })
+  }, [address, player, fetchBattleHistory])
 
   const formatNumber = (n: bigint): string => {
     const num = Number(n)
@@ -105,6 +126,21 @@ export function Header() {
           </button>
         )}
       </div>
+      {attackNotification && (
+        <div style={styles.notificationBanner}>
+          <span>
+            You were attacked! {attackNotification.destructionPercent}% destroyed.
+            {Number(attackNotification.diamondStolen) > 0 && ` Lost ${Number(attackNotification.diamondStolen)} diamond`}
+            {Number(attackNotification.gasStolen) > 0 && ` ${Number(attackNotification.gasStolen)} gas`}
+          </span>
+          <button
+            style={styles.dismissBtn}
+            onClick={() => setAttackNotification(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     </header>
   )
 }
@@ -230,6 +266,32 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '12px',
+  },
+  notificationBanner: {
+    position: 'absolute',
+    bottom: '-44px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: '#e74c3c',
+    color: '#fff',
+    padding: '8px 16px',
+    borderRadius: '0 0 8px 8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    whiteSpace: 'nowrap',
+    zIndex: 200,
+  },
+  dismissBtn: {
+    padding: '2px 8px',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    border: 'none',
+    borderRadius: '4px',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '11px',
   },
   connectBtn: {
     padding: '12px 24px',
