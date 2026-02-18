@@ -346,29 +346,30 @@ export function VillageGrid() {
       }
     }
 
-    // Worker ready indicator on Command Center (Town Hall)
+    // Worker training indicator on Command Center (Town Hall)
     if (builderQueue?.isTraining) {
       const townHall = buildings.find(b => b.buildingType === BuildingType.TownHall)
       if (townHall) {
         const workerRemaining = getUpgradeRemaining(builderQueue.finishTime, now)
+        const size = BUILDING_SIZES[BuildingType.TownHall] || { width: 4, height: 4 }
+        const bh = BUILDING_HEIGHTS[BuildingType.TownHall] ?? 14
+        const topG = gridToScreen(townHall.x, townHall.y)
+        const rightG = gridToScreen(townHall.x + size.width, townHall.y)
+        const bottomG = gridToScreen(townHall.x + size.width, townHall.y + size.height)
+        const leftG = gridToScreen(townHall.x, townHall.y + size.height)
+        const topR = { x: topG.x, y: topG.y - bh }
+        const topCenter = {
+          x: (topR.x + rightG.x - bh + bottomG.x - bh + leftG.x - bh) / 4,
+          y: ((topG.y - bh) + (rightG.y - bh) + (bottomG.y - bh) + (leftG.y - bh)) / 4,
+        }
+        const indicatorX = topCenter.x
+        const indicatorY = topR.y - 12
+
         if (workerRemaining <= 0) {
-          const size = BUILDING_SIZES[BuildingType.TownHall] || { width: 4, height: 4 }
-          const bh = BUILDING_HEIGHTS[BuildingType.TownHall] ?? 14
-          const topG = gridToScreen(townHall.x, townHall.y)
-          const rightG = gridToScreen(townHall.x + size.width, townHall.y)
-          const bottomG = gridToScreen(townHall.x + size.width, townHall.y + size.height)
-          const leftG = gridToScreen(townHall.x, townHall.y + size.height)
-          const topR = { x: topG.x, y: topG.y - bh }
-          const topCenter = {
-            x: (topR.x + rightG.x - bh + bottomG.x - bh + leftG.x - bh) / 4,
-            y: ((topG.y - bh) + (rightG.y - bh) + (bottomG.y - bh) + (leftG.y - bh)) / 4,
-          }
-          const indicatorX = topCenter.x
-          const indicatorY = topR.y - 12
+          // Ready - pulsing blue circle
           const pulse = 0.8 + 0.2 * Math.sin(now * 3)
           const radius = 10 * pulse
 
-          // Blue circle with worker icon
           ctx.beginPath()
           ctx.arc(indicatorX, indicatorY, radius, 0, Math.PI * 2)
           ctx.fillStyle = '#3498db'
@@ -377,18 +378,38 @@ export function VillageGrid() {
           ctx.lineWidth = 1.5
           ctx.stroke()
 
-          // Worker "W" text inside circle
           ctx.fillStyle = '#fff'
           ctx.font = 'bold 10px sans-serif'
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
           ctx.fillText('W', indicatorX, indicatorY)
 
-          // "Collect" text below
           ctx.fillStyle = '#3498db'
           ctx.font = 'bold 9px sans-serif'
           ctx.textBaseline = 'top'
           ctx.fillText('Worker!', topCenter.x, topCenter.y + 6)
+        } else {
+          // In progress - orange circle with countdown
+          const radius = 10
+
+          ctx.beginPath()
+          ctx.arc(indicatorX, indicatorY, radius, 0, Math.PI * 2)
+          ctx.fillStyle = 'rgba(255, 165, 0, 0.8)'
+          ctx.fill()
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 1.5
+          ctx.stroke()
+
+          ctx.fillStyle = '#fff'
+          ctx.font = 'bold 10px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText('W', indicatorX, indicatorY)
+
+          ctx.fillStyle = '#FFA500'
+          ctx.font = 'bold 9px sans-serif'
+          ctx.textBaseline = 'top'
+          ctx.fillText(formatCountdown(workerRemaining), topCenter.x, topCenter.y + 6)
         }
       }
     }
@@ -550,7 +571,7 @@ export function VillageGrid() {
         ctx.globalAlpha = 1
       }
     }
-  }, [buildings, isPlacing, isMoving, movingBuildingId, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick])
+  }, [buildings, isPlacing, isMoving, movingBuildingId, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick, builderQueue])
 
   // Handle mouse down (start potential drag)
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
