@@ -47,6 +47,14 @@ export interface BuilderQueue {
   finishTime: bigint
 }
 
+export interface TrainingQueue {
+  owner: string
+  barracksId: number
+  troopType: number
+  quantity: number
+  finishTime: bigint
+}
+
 // Subscription type from torii
 interface Subscription {
   free(): void
@@ -73,10 +81,12 @@ interface DojoContextType {
   buildings: Building[]
   army: Army | null
   builderQueue: BuilderQueue | null
+  trainingQueues: TrainingQueue[]
   setPlayer: (player: Player | null) => void
   setBuildings: (buildings: Building[]) => void
   setArmy: (army: Army | null) => void
   setBuilderQueue: (queue: BuilderQueue | null) => void
+  setTrainingQueues: (queues: TrainingQueue[]) => void
   fetchPlayerData: (address: string) => Promise<boolean>
   fetchAllPlayers: (excludeAddress?: string) => Promise<Player[]>
   fetchDefenderBuildings: (address: string) => Promise<Building[]>
@@ -179,6 +189,16 @@ function transformBuilding(data: ClashSchemaType['clash']['Building']): Building
   }
 }
 
+function transformTrainingQueue(data: ClashSchemaType['clash']['TrainingQueue']): TrainingQueue {
+  return {
+    owner: data.owner,
+    barracksId: parseInt(data.barracks_id ?? '0', 10),
+    troopType: parseBuildingType(data.troop_type), // Reuses the same enum parsing logic
+    quantity: parseInt(data.quantity ?? '0', 10),
+    finishTime: BigInt(data.finish_time ?? '0'),
+  }
+}
+
 function transformBuilderQueue(data: ClashSchemaType['clash']['BuilderQueue']): BuilderQueue {
   return {
     owner: data.owner,
@@ -206,6 +226,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   const [buildings, setBuildings] = useState<Building[]>([])
   const [army, setArmy] = useState<Army | null>(null)
   const [builderQueue, setBuilderQueue] = useState<BuilderQueue | null>(null)
+  const [trainingQueues, setTrainingQueues] = useState<TrainingQueue[]>([])
   const [isPlacing, setIsPlacing] = useState(false)
   const [selectedBuildingType, setSelectedBuildingType] = useState<number | null>(null)
   const [isMoving, setIsMoving] = useState(false)
@@ -368,6 +389,32 @@ export function DojoProvider({ children }: { children: ReactNode }) {
           break
         }
       }
+
+      // Fetch TrainingQueues for barracks
+      const trainingQuery = new ToriiQueryBuilder<ClashSchemaType>()
+        .withClause(
+          MemberClause(
+            MODELS.TrainingQueue,
+            'owner',
+            'Eq',
+            paddedAddress
+          ).build()
+        )
+        .withLimit(20)
+
+      const trainingResponse = await sdk.getEntities({ query: trainingQuery })
+      const trainingEntities = trainingResponse.getItems()
+      const fetchedQueues: TrainingQueue[] = []
+      for (const entity of trainingEntities) {
+        const tqData = entity.models?.clash?.TrainingQueue
+        if (tqData) {
+          const tq = transformTrainingQueue(tqData as ClashSchemaType['clash']['TrainingQueue'])
+          if (tq.quantity > 0) {
+            fetchedQueues.push(tq)
+          }
+        }
+      }
+      setTrainingQueues(fetchedQueues)
 
       // Set up subscriptions for real-time updates
       setupSubscriptions(address)
@@ -701,10 +748,12 @@ export function DojoProvider({ children }: { children: ReactNode }) {
         buildings,
         army,
         builderQueue,
+        trainingQueues,
         setPlayer,
         setBuildings,
         setArmy,
         setBuilderQueue,
+        setTrainingQueues,
         fetchPlayerData,
         fetchAllPlayers,
         fetchDefenderBuildings,

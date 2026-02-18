@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
-import { useDojo } from '../../providers/DojoProvider'
+import { useDojo, TrainingQueue } from '../../providers/DojoProvider'
 import { useAccount } from '@starknet-react/core'
-import { dojoConfig, BuildingType, BUILDING_INFO, BUILDING_SPRITES, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
+import { dojoConfig, BuildingType, TroopType, BUILDING_INFO, BUILDING_SPRITES, TROOP_INFO, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -157,7 +157,7 @@ export function VillageGrid() {
     moveBuilding,
   } = useBuildings()
   const { canAfford } = useResources()
-  const { player, setPlayer, setBuildings, builderQueue, setBuilderQueue } = useDojo()
+  const { player, setPlayer, setBuildings, builderQueue, setBuilderQueue, trainingQueues, setTrainingQueues } = useDojo()
   const { account } = useAccount()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
@@ -417,6 +417,61 @@ export function VillageGrid() {
       }
     }
 
+    // Troop training indicator on Barracks buildings
+    for (const queue of trainingQueues) {
+      if (queue.quantity <= 0) continue
+      const barracks = buildings.find(b => b.buildingId === queue.barracksId && b.buildingType === BuildingType.Barracks)
+      if (!barracks) continue
+
+      const troopRemaining = getUpgradeRemaining(queue.finishTime, now)
+      const size = BUILDING_SIZES[BuildingType.Barracks] || { width: 3, height: 3 }
+      const bh = BUILDING_HEIGHTS[BuildingType.Barracks] ?? 14
+      const topG = gridToScreen(barracks.x, barracks.y)
+      const rightG = gridToScreen(barracks.x + size.width, barracks.y)
+      const bottomG = gridToScreen(barracks.x + size.width, barracks.y + size.height)
+      const leftG = gridToScreen(barracks.x, barracks.y + size.height)
+      const topR = { x: topG.x, y: topG.y - bh }
+      const topCenter = {
+        x: (topR.x + rightG.x - bh + bottomG.x - bh + leftG.x - bh) / 4,
+        y: ((topG.y - bh) + (rightG.y - bh) + (bottomG.y - bh) + (leftG.y - bh)) / 4,
+      }
+      const indicatorX = topCenter.x
+      const indicatorY = topR.y - 12
+
+      if (troopRemaining <= 0) {
+        const pulse = 0.8 + 0.2 * Math.sin(now * 3)
+        const radius = 10 * pulse
+        ctx.beginPath()
+        ctx.arc(indicatorX, indicatorY, radius, 0, Math.PI * 2)
+        ctx.fillStyle = '#27ae60'
+        ctx.fill()
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 10px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('T', indicatorX, indicatorY)
+        drawLabelWithBg(ctx, `${queue.quantity}x Ready!`, topCenter.x, topCenter.y + 6, '#27ae60')
+      } else {
+        const radius = 10
+        ctx.beginPath()
+        ctx.arc(indicatorX, indicatorY, radius, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(255, 165, 0, 0.8)'
+        ctx.fill()
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 10px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('T', indicatorX, indicatorY)
+        drawLabelWithBg(ctx, formatCountdown(troopRemaining), topCenter.x, topCenter.y + 6, '#FFA500')
+      }
+    }
+
     // Draw placement preview
     if (isPlacing && mousePos && selectedBuildingType !== null) {
       const size = BUILDING_SIZES[selectedBuildingType] || { width: 1, height: 1 }
@@ -574,7 +629,7 @@ export function VillageGrid() {
         ctx.globalAlpha = 1
       }
     }
-  }, [buildings, isPlacing, isMoving, movingBuildingId, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick, builderQueue])
+  }, [buildings, isPlacing, isMoving, movingBuildingId, mousePos, selectedBuildingType, selectedBuilding, checkCollision, now, canvasSize, getTransform, spritesLoaded, camTick, builderQueue, trainingQueues])
 
   // Handle mouse down (start potential drag)
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -755,6 +810,62 @@ export function VillageGrid() {
       setPending(false)
     }
   }, [account, pending, setBuilderQueue])
+
+  // Train troops on-chain (at Barracks)
+  const handleTrainTroops = useCallback(async (barracksId: number, troopType: TroopType, quantity: number) => {
+    if (!account || pending || !player) return
+    setPending(true)
+
+    const troopConfig = troopType === TroopType.Barbarian ? { time: 20 } : { time: 25 }
+    const totalTime = troopConfig.time * quantity
+    const optimisticQueue: TrainingQueue = {
+      owner: account.address,
+      barracksId,
+      troopType,
+      quantity,
+      finishTime: BigInt(Math.floor(Date.now() / 1000) + totalTime),
+    }
+    setTrainingQueues([...trainingQueues.filter(q => q.barracksId !== barracksId), optimisticQueue])
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.trainingSystemAddress,
+          entrypoint: 'train_troops',
+          calldata: [barracksId, troopType, quantity],
+        },
+      ], noFeeDetails)
+      console.log('Troop training started on-chain')
+    } catch (error) {
+      console.error('Failed to train troops:', error)
+      setTrainingQueues(trainingQueues.filter(q => q.barracksId !== barracksId))
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending, player, trainingQueues, setTrainingQueues])
+
+  // Collect trained troops on-chain
+  const handleCollectTroops = useCallback(async (barracksId: number) => {
+    if (!account || pending) return
+    setPending(true)
+
+    setTrainingQueues(trainingQueues.filter(q => q.barracksId !== barracksId))
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.trainingSystemAddress,
+          entrypoint: 'collect_trained_troops',
+          calldata: [barracksId],
+        },
+      ], noFeeDetails)
+      console.log('Troops collected on-chain')
+    } catch (error) {
+      console.error('Failed to collect troops:', error)
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending, trainingQueues, setTrainingQueues])
 
   // Redraw when dependencies change
   useEffect(() => {
@@ -1147,6 +1258,81 @@ export function VillageGrid() {
 
                   {!isTraining && !canTrain && (
                     <p style={{ ...styles.stat, color: '#FFD700' }}>All worker slots filled</p>
+                  )}
+                </div>
+              )
+            })()}
+
+          {/* Barracks troop training UI */}
+          {selectedBuildingData.buildingType === BuildingType.Barracks &&
+            selectedBuildingData.level > 0 &&
+            !selectedBuildingData.isUpgrading && player && (() => {
+              const barracksId = selectedBuildingData.buildingId
+              const queue = trainingQueues.find(q => q.barracksId === barracksId)
+              const isTraining = queue && queue.quantity > 0
+              const trainingRemaining = isTraining ? getUpgradeRemaining(queue.finishTime, now) : 0
+              const trainingReady = isTraining && trainingRemaining <= 0
+
+              return (
+                <div style={styles.upgradeSection}>
+                  <p style={{ ...styles.stat, fontWeight: 'bold' }}>Troop Training</p>
+
+                  {isTraining && !trainingReady && (() => {
+                    const troopName = TROOP_INFO[queue.troopType as TroopType]?.name || 'Troops'
+                    const troopTime = queue.troopType === TroopType.Barbarian ? 20 : 25
+                    const totalTime = troopTime * queue.quantity
+                    const progress = totalTime > 0 ? Math.min(1, Math.max(0, (totalTime - trainingRemaining) / totalTime)) : 0
+                    return (
+                      <div>
+                        <p style={{ ...styles.stat, color: '#FFA500' }}>
+                          Training {queue.quantity}x {troopName}... {formatCountdown(trainingRemaining)}
+                        </p>
+                        <div style={styles.progressBarBg}>
+                          <div style={{ ...styles.progressBarFill, width: `${progress * 100}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {trainingReady && queue && (
+                    <div>
+                      <p style={{ ...styles.stat, color: '#27ae60' }}>
+                        {queue.quantity}x {TROOP_INFO[queue.troopType as TroopType]?.name || 'Troops'} ready!
+                      </p>
+                      <button
+                        style={{ ...styles.upgradeBtn, backgroundColor: '#27ae60' }}
+                        onClick={() => handleCollectTroops(barracksId)}
+                        disabled={pending}
+                      >
+                        {pending ? 'Collecting...' : 'Collect Troops'}
+                      </button>
+                    </div>
+                  )}
+
+                  {!isTraining && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {Object.entries(TROOP_INFO).map(([typeStr, info]) => {
+                        const troopType = Number(typeStr) as TroopType
+                        const costPerUnit = info.cost
+                        const quantity = 5
+                        const totalCost = costPerUnit * quantity
+                        const canAfford = Number(player.gas) >= totalCost
+                        return (
+                          <button
+                            key={typeStr}
+                            style={{
+                              ...styles.upgradeBtn,
+                              opacity: canAfford && !pending ? 1 : 0.5,
+                              cursor: canAfford && !pending ? 'pointer' : 'not-allowed',
+                            }}
+                            onClick={() => canAfford && !pending && handleTrainTroops(barracksId, troopType, quantity)}
+                            disabled={!canAfford || pending}
+                          >
+                            {!canAfford ? `Not enough gas` : pending ? 'Sending...' : `Train 5x ${info.name} (${totalCost} gas)`}
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               )
