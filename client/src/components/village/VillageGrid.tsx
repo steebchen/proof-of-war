@@ -6,6 +6,8 @@ import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, TroopType, BUILDING_INFO, BUILDING_SPRITES, TROOP_INFO, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
+  HALF_W,
+  HALF_H,
   ISO_CANVAS_W,
   ISO_CANVAS_H,
   BUILDING_SIZES,
@@ -285,6 +287,58 @@ export function VillageGrid() {
 
     // Sort buildings back-to-front for painter's algorithm
     const sorted = [...buildings].sort((a, b) => (a.x + a.y) - (b.x + b.y))
+
+    // Draw defense range circle for selected or placing defense buildings
+    const DEFENSE_RANGES: Partial<Record<number, number>> = {
+      [BuildingType.Cannon]: 9,
+      [BuildingType.ArcherTower]: 10,
+    }
+
+    // Range for selected building
+    if (selectedBuilding !== null) {
+      const selB = buildings.find(b => b.buildingId === selectedBuilding)
+      if (selB && DEFENSE_RANGES[selB.buildingType]) {
+        const range = DEFENSE_RANGES[selB.buildingType]!
+        const size = BUILDING_SIZES[selB.buildingType] || { width: 3, height: 3 }
+        const centerX = selB.x + size.width / 2
+        const centerY = selB.y + size.height / 2
+        const center = gridToScreen(centerX, centerY)
+        const radiusX = range * HALF_W
+        const radiusY = range * HALF_H
+        ctx.beginPath()
+        ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.08)'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(231, 76, 60, 0.4)'
+        ctx.lineWidth = 1.5
+        ctx.setLineDash([6, 4])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+    }
+
+    // Range for building being placed
+    if (isPlacing && mousePos && selectedBuildingType !== null && DEFENSE_RANGES[selectedBuildingType]) {
+      const range = DEFENSE_RANGES[selectedBuildingType]!
+      const size = BUILDING_SIZES[selectedBuildingType] || { width: 3, height: 3 }
+      const { gx, gy } = screenToGrid(mousePos.x, mousePos.y)
+      const snappedX = Math.round(gx)
+      const snappedY = Math.round(gy)
+      const centerX = snappedX + size.width / 2
+      const centerY = snappedY + size.height / 2
+      const center = gridToScreen(centerX, centerY)
+      const radiusX = range * HALF_W
+      const radiusY = range * HALF_H
+      ctx.beginPath()
+      ctx.ellipse(center.x, center.y, radiusX, radiusY, 0, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(52, 152, 219, 0.08)'
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(52, 152, 219, 0.4)'
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([6, 4])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
 
     // Draw buildings
     for (const building of sorted) {
