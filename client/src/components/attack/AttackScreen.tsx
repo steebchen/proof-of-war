@@ -888,9 +888,12 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       const battleId = await startAttack(targetAddress)
       if (battleId !== null) {
         setPhase('deploy')
+      } else {
+        alert('Failed to start attack. Make sure you have trained troops and the cooldown has passed.')
       }
     } catch (error) {
       console.error('Scout failed:', error)
+      alert('Scout failed: ' + String(error))
     }
     setPending(false)
   }
