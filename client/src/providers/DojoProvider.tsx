@@ -2,7 +2,7 @@ import { createContext, useContext, ReactNode, useState, useEffect, useCallback,
 import { init, ToriiQueryBuilder, KeysClause, MemberClause } from '@dojoengine/sdk'
 import type { SDK, StandardizedQueryResult } from '@dojoengine/sdk'
 import { addAddressPadding } from 'starknet'
-import { dojoConfig, BuildingType } from '../config/dojoConfig'
+import { dojoConfig, BuildingType, TroopType } from '../config/dojoConfig'
 import { ClashSchemaType, MODELS } from '../types/schema'
 
 // Types for our game state
@@ -201,11 +201,33 @@ function transformBuilding(data: ClashSchemaType['clash']['Building']): Building
   }
 }
 
+function parseTroopType(typeData: unknown): number {
+  if (typeof typeData === 'number') return typeData
+  if (typeof typeData === 'string') {
+    const num = parseInt(typeData, 10)
+    if (!isNaN(num)) return num
+    const enumMap: Record<string, number> = {
+      'Barbarian': TroopType.Barbarian,
+      'Archer': TroopType.Archer,
+      'Giant': TroopType.Giant,
+    }
+    return enumMap[typeData] ?? 0
+  }
+  if (typeof typeData === 'object' && typeData !== null) {
+    const obj = typeData as Record<string, unknown>
+    if ('variant' in obj) return parseTroopType(obj.variant)
+    if ('type' in obj) return parseTroopType(obj.type)
+    const keys = Object.keys(obj)
+    if (keys.length === 1) return parseTroopType(keys[0])
+  }
+  return 0
+}
+
 function transformTrainingQueue(data: ClashSchemaType['clash']['TrainingQueue']): TrainingQueue {
   return {
     owner: data.owner,
     barracksId: parseInt(data.barracks_id ?? '0', 10),
-    troopType: parseBuildingType(data.troop_type), // Reuses the same enum parsing logic
+    troopType: parseTroopType(data.troop_type),
     quantity: parseInt(data.quantity ?? '0', 10),
     finishTime: BigInt(data.finish_time ?? '0'),
   }
