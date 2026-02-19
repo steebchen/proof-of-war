@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
 import { useDojo, TrainingQueue } from '../../providers/DojoProvider'
+import { getMaxBuildingCount as getMaxBuildingCountClient } from '../../utils/buildingLimits'
 import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, TroopType, BUILDING_INFO, BUILDING_SPRITES, TROOP_INFO, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
 import {
@@ -1289,6 +1290,41 @@ export function VillageGrid() {
             selectedBuildingData.level >= (MAX_LEVELS[selectedBuildingData.buildingType] ?? 1) && (
               <p style={{ ...styles.stat, color: '#FFD700', fontWeight: 'bold' }}>Max Level</p>
             )}
+
+          {/* TH unlock preview */}
+          {selectedBuildingData.buildingType === BuildingType.TownHall &&
+            selectedBuildingData.level > 0 &&
+            selectedBuildingData.level < (MAX_LEVELS[BuildingType.TownHall] ?? 5) &&
+            !selectedBuildingData.isUpgrading && (() => {
+              const nextTH = selectedBuildingData.level + 1
+              const currentTH = selectedBuildingData.level
+              const unlocks: string[] = []
+              const buildingTypes = [
+                BuildingType.DiamondMine, BuildingType.GasCollector,
+                BuildingType.DiamondStorage, BuildingType.GasStorage,
+                BuildingType.Barracks, BuildingType.Cannon,
+                BuildingType.ArcherTower, BuildingType.Wall,
+              ]
+              for (const bt of buildingTypes) {
+                const curMax = getMaxBuildingCountClient(bt, currentTH)
+                const nextMax = getMaxBuildingCountClient(bt, nextTH)
+                if (nextMax > curMax) {
+                  const name = BUILDING_NAMES[bt] || 'Unknown'
+                  unlocks.push(`+${nextMax - curMax} ${name}`)
+                }
+              }
+              if (unlocks.length === 0) return null
+              return (
+                <div style={{ ...styles.upgradeSection, borderColor: '#3498db' }}>
+                  <p style={{ ...styles.stat, fontWeight: 'bold', color: '#3498db' }}>
+                    TH{nextTH} Unlocks:
+                  </p>
+                  {unlocks.map((u, i) => (
+                    <p key={i} style={{ ...styles.stat, fontSize: '11px', color: '#8ab4f8' }}>{u}</p>
+                  ))}
+                </div>
+              )
+            })()}
 
           {/* Command Center worker training UI */}
           {selectedBuildingData.buildingType === BuildingType.TownHall &&
