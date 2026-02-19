@@ -2,7 +2,15 @@ import { BuildingType, BUILDING_INFO, BUILDING_SPRITES } from '../../config/dojo
 import { useBuildings } from '../../hooks/useBuildings'
 import { useResources } from '../../hooks/useResources'
 import { useDojo } from '../../providers/DojoProvider'
-import { getBuildingLimits } from '../../utils/buildingLimits'
+import { getBuildingLimits, getMaxBuildingCount } from '../../utils/buildingLimits'
+
+// Find the minimum TH level that unlocks a building type (max count > 0)
+function getUnlockThLevel(buildingType: BuildingType): number {
+  for (let th = 1; th <= 5; th++) {
+    if (getMaxBuildingCount(buildingType, th) > 0) return th
+  }
+  return 6 // never unlocked
+}
 
 interface BottomBarProps {
   onOpenArmy: () => void
@@ -36,13 +44,17 @@ export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenB
             const affordable = canAfford(building.cost.diamond, building.cost.gas)
             const limitInfo = limits[building.type]
             const atLimit = !limitInfo.canBuild
+            const isLocked = limitInfo.max === 0
+            const unlockTh = isLocked ? getUnlockThLevel(building.type) : 0
             const noWorkers = (player?.freeBuilders ?? 0) <= 0
             const isSelected = isPlacing && selectedBuildingType === building.type
             const isDisabled = !affordable || atLimit || noWorkers
 
             // Determine disabled reason
             let disabledReason = ''
-            if (atLimit) {
+            if (isLocked) {
+              disabledReason = `TH ${unlockTh} required`
+            } else if (atLimit) {
               disabledReason = 'Max built'
             } else if (noWorkers) {
               disabledReason = 'No free workers'
@@ -60,9 +72,10 @@ export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenB
                   style={{
                     ...styles.buildingBtn,
                     backgroundColor: BUILDING_SPRITES[building.type] ? 'rgba(0,0,0,0.3)' : building.color,
-                    opacity: isDisabled ? 0.5 : 1,
+                    opacity: isLocked ? 0.3 : isDisabled ? 0.5 : 1,
                     border: isSelected ? '3px solid #fff' : '3px solid transparent',
                     cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    filter: isLocked ? 'grayscale(100%)' : 'none',
                   }}
                   onClick={() => !isDisabled && (isSelected ? cancelPlacing() : startPlacing(building.type))}
                   disabled={isDisabled}
@@ -91,11 +104,11 @@ export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenB
                 <div
                   style={{
                     ...styles.limitBadge,
-                    backgroundColor: atLimit ? '#e74c3c' : 'rgba(0, 0, 0, 0.6)',
-                    color: atLimit ? '#fff' : '#aaa',
+                    backgroundColor: isLocked ? '#555' : atLimit ? '#e74c3c' : 'rgba(0, 0, 0, 0.6)',
+                    color: isLocked ? '#999' : atLimit ? '#fff' : '#aaa',
                   }}
                 >
-                  {limitInfo.current}/{limitInfo.max}
+                  {isLocked ? `TH${unlockTh}` : `${limitInfo.current}/${limitInfo.max}`}
                 </div>
                 {/* Disabled reason */}
                 {isDisabled && disabledReason && (
