@@ -5,6 +5,7 @@ import { useDojo, TrainingQueue } from '../../providers/DojoProvider'
 import { getMaxBuildingCount as getMaxBuildingCountClient } from '../../utils/buildingLimits'
 import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, TroopType, BUILDING_INFO, BUILDING_SPRITES, TROOP_INFO, NO_FEE_DETAILS, BUILD_TIMES, getBuildingMaxHealth } from '../../config/dojoConfig'
+import { useToast } from '../ui/Toast'
 import {
   GRID_SIZE,
   HALF_W,
@@ -171,6 +172,7 @@ export function VillageGrid() {
   const { canAfford } = useResources()
   const { player, setPlayer, setBuildings, builderQueue, setBuilderQueue, trainingQueues, setTrainingQueues } = useDojo()
   const { account } = useAccount()
+  const { addToast } = useToast()
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectedBuilding, setSelectedBuilding] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
@@ -804,8 +806,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Upgrade started on-chain')
+      addToast('Upgrade started!')
     } catch (error) {
       console.error('Failed to upgrade:', error)
+      addToast('Failed to start upgrade', 'error')
       // Revert optimistic updates on failure
       setBuildings(prevBuildings)
       if (prevPlayer) setPlayer(prevPlayer)
@@ -843,8 +847,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Upgrade finished on-chain')
+      addToast('Upgrade complete!')
     } catch (error) {
       console.error('Failed to finish upgrade:', error)
+      addToast('Failed to finish upgrade', 'error')
       // Revert optimistic updates on failure
       setBuildings(prevBuildings)
       if (prevPlayer) setPlayer(prevPlayer)
@@ -870,8 +876,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Worker training started on-chain')
+      addToast('Worker training started!')
     } catch (error) {
       console.error('Failed to train worker:', error)
+      addToast('Failed to train worker', 'error')
       setBuilderQueue(null)
     } finally {
       setPending(false)
@@ -894,8 +902,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Worker collected on-chain')
+      addToast('New worker ready!')
     } catch (error) {
       console.error('Failed to collect worker:', error)
+      addToast('Failed to collect worker', 'error')
     } finally {
       setPending(false)
     }
@@ -926,8 +936,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Troop training started on-chain')
+      addToast('Troop training started!')
     } catch (error) {
       console.error('Failed to train troops:', error)
+      addToast('Failed to train troops', 'error')
       setTrainingQueues(trainingQueues.filter(q => q.barracksId !== barracksId))
     } finally {
       setPending(false)
@@ -950,8 +962,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Troops collected on-chain')
+      addToast('Troops collected!')
     } catch (error) {
       console.error('Failed to collect troops:', error)
+      addToast('Failed to collect troops', 'error')
     } finally {
       setPending(false)
     }
@@ -971,9 +985,11 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Building removed on-chain')
+      addToast('Building removed')
       setSelectedBuilding(null)
     } catch (error) {
       console.error('Failed to remove building:', error)
+      addToast('Failed to remove building', 'error')
     } finally {
       setPending(false)
     }
@@ -993,8 +1009,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('Building repaired on-chain')
+      addToast('Building repaired!')
     } catch (error) {
       console.error('Failed to repair building:', error)
+      addToast('Failed to repair building', 'error')
     } finally {
       setPending(false)
     }
@@ -1014,8 +1032,10 @@ export function VillageGrid() {
         },
       ], noFeeDetails)
       console.log('All buildings repaired on-chain')
+      addToast('All buildings repaired!')
     } catch (error) {
       console.error('Failed to repair all:', error)
+      addToast('Failed to repair buildings', 'error')
     } finally {
       setPending(false)
     }

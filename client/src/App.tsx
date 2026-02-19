@@ -11,6 +11,7 @@ import { Leaderboard } from './components/layout/Leaderboard'
 import { BattleLog } from './components/attack/BattleLog'
 import { useAttack } from './hooks/useAttack'
 import { dojoConfig, NO_FEE_DETAILS } from './config/dojoConfig'
+import { ToastProvider, useToast } from './components/ui/Toast'
 
 function App() {
   const { address, isConnected, account } = useAccount()
@@ -32,6 +33,7 @@ function App() {
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false)
   const hasFetchedRef = useRef(false)
   const { currentBattle, cancelAttack } = useAttack()
+  const { addToast } = useToast()
 
   // Reset player state on disconnect
   useEffect(() => {
@@ -96,6 +98,7 @@ function App() {
         },
       ], NO_FEE_DETAILS)
       console.log('Spawn successful')
+      addToast('Village spawned! Welcome, Commander!')
 
       // Set optimistic local state after successful spawn
       // The subscription will update with real data from Torii
@@ -147,6 +150,7 @@ function App() {
         await fetchPlayerData(address)
       } else {
         console.error('Failed to spawn:', error)
+        addToast('Failed to spawn village', 'error')
       }
     } finally {
       setIsSpawning(false)
@@ -420,4 +424,12 @@ styleSheet.textContent = `
 `
 document.head.appendChild(styleSheet)
 
-export default App
+function AppWithToast() {
+  return (
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  )
+}
+
+export default AppWithToast
