@@ -334,6 +334,11 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [opponents, setOpponents] = useState<Player[]>([])
   const [loadingOpponents, setLoadingOpponents] = useState(true)
 
+  // Scout preview
+  const scoutCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [scoutBuildings, setScoutBuildings] = useState<Building[]>([])
+  const [loadingScout, setLoadingScout] = useState(false)
+
   // Fetch opponents on mount, sorted by trophy proximity
   useEffect(() => {
     setLoadingOpponents(true)
@@ -348,6 +353,55 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       setLoadingOpponents(false)
     })
   }, [fetchAllPlayers, address, player?.trophies])
+
+  // Fetch defender buildings for scout preview when opponent selected
+  useEffect(() => {
+    if (!targetAddress || phase !== 'scout') {
+      setScoutBuildings([])
+      return
+    }
+    setLoadingScout(true)
+    fetchDefenderBuildings(targetAddress).then(buildings => {
+      setScoutBuildings(buildings)
+      setLoadingScout(false)
+    }).catch(() => setLoadingScout(false))
+  }, [targetAddress, phase, fetchDefenderBuildings])
+
+  // Draw scout preview canvas
+  useEffect(() => {
+    const canvas = scoutCanvasRef.current
+    if (!canvas || scoutBuildings.length === 0 || phase !== 'scout') return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const w = canvas.width
+    const h = canvas.height
+
+    ctx.clearRect(0, 0, w, h)
+    ctx.fillStyle = '#0a0f1e'
+    ctx.fillRect(0, 0, w, h)
+
+    // Scale to fit the grid in the preview
+    const scale = Math.min(w / ISO_CANVAS_W, h / ISO_CANVAS_H)
+    ctx.save()
+    ctx.scale(scale, scale)
+
+    drawIsoGrid(ctx)
+
+    // Draw buildings
+    for (const b of scoutBuildings) {
+      const isoData = {
+        buildingType: b.buildingType,
+        x: b.x,
+        y: b.y,
+        level: b.level,
+      }
+      drawIsoBuilding(ctx, isoData, spritesRef.current, false)
+    }
+
+    ctx.restore()
+  }, [scoutBuildings, phase, spritesLoaded])
 
   // Replay state
   const [replaySnapshots, setReplaySnapshots] = useState<TickSnapshot[]>([])
@@ -972,13 +1026,31 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
               </div>
             )}
             {targetAddress && (
-              <button
-                style={{ ...styles.startBtn, opacity: pending ? 0.5 : 1, marginTop: '12px' }}
-                onClick={handleScout}
-                disabled={pending}
-              >
-                {pending ? 'Scouting...' : 'Scout & Attack'}
-              </button>
+              <div style={{ marginTop: '12px' }}>
+                {/* Defense preview */}
+                {loadingScout ? (
+                  <div style={{ textAlign: 'center', padding: '16px', color: '#888' }}>Loading base preview...</div>
+                ) : scoutBuildings.length > 0 && (
+                  <div style={styles.scoutPreview}>
+                    <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Base Layout ({scoutBuildings.length} buildings)
+                    </div>
+                    <canvas
+                      ref={scoutCanvasRef}
+                      width={400}
+                      height={300}
+                      style={styles.scoutCanvas}
+                    />
+                  </div>
+                )}
+                <button
+                  style={{ ...styles.startBtn, opacity: pending ? 0.5 : 1, marginTop: '8px' }}
+                  onClick={handleScout}
+                  disabled={pending}
+                >
+                  {pending ? 'Scouting...' : 'Scout & Attack'}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -1413,4 +1485,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '16px',
     marginTop: '12px',
   },
+  scoutPreview: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: '8px',
+    padding: '8px',
+    border: '1px solid #0f3460',
+  },
+  scoutCanvas: {
+    width: '100%',
+    maxWidth: '400px',
+    borderRadius: '4px',
+    display: 'block',
+    margin: '0 auto',
+  } as React.CSSProperties,
 }
