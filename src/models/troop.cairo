@@ -29,7 +29,7 @@ pub fn get_troop_config(troop_type: TroopType) -> TroopConfig {
             training_cost_gas: 25,
             housing_space: 1,
             attack_range: 1,
-            movement_speed: 2,
+            movement_speed: 8,
         },
         TroopType::Archer => TroopConfig {
             troop_type: TroopType::Archer,
@@ -39,7 +39,7 @@ pub fn get_troop_config(troop_type: TroopType) -> TroopConfig {
             training_cost_gas: 50,
             housing_space: 1,
             attack_range: 4,
-            movement_speed: 2,
+            movement_speed: 8,
         },
         TroopType::Giant => TroopConfig {
             troop_type: TroopType::Giant,
@@ -49,7 +49,7 @@ pub fn get_troop_config(troop_type: TroopType) -> TroopConfig {
             training_cost_gas: 150,
             housing_space: 5,
             attack_range: 1,
-            movement_speed: 1,
+            movement_speed: 4,
         },
     }
 }

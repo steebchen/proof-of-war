@@ -20,9 +20,9 @@ import {
 
 // Troop config matching Cairo (for replay simulation)
 const TROOP_CONFIG: Record<number, { health: number; damage: number; attackRange: number; movementSpeed: number }> = {
-  [TroopType.Barbarian]: { health: 45, damage: 8, attackRange: 1, movementSpeed: 2 },
-  [TroopType.Archer]: { health: 20, damage: 7, attackRange: 4, movementSpeed: 2 },
-  [TroopType.Giant]: { health: 300, damage: 12, attackRange: 1, movementSpeed: 1 },
+  [TroopType.Barbarian]: { health: 45, damage: 8, attackRange: 1, movementSpeed: 8 },
+  [TroopType.Archer]: { health: 20, damage: 7, attackRange: 4, movementSpeed: 8 },
+  [TroopType.Giant]: { health: 300, damage: 12, attackRange: 1, movementSpeed: 4 },
 }
 
 // Defense stats matching Cairo config
