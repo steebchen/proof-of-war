@@ -59,6 +59,17 @@ npm run dev
 ```
 Runs on localhost:5173, accessible via https://clash.localtest.me/
 
+## Full State Reset (Dev)
+
+To reset everything and start fresh, restart Katana (kills all on-chain state), then redeploy and restart Torii:
+
+1. Kill Katana and Torii processes
+2. Restart Katana: `katana --http.port 5051 --dev --dev.no-fee --http.cors_origins "https://clash.localtest.me"`
+3. Redeploy: `sozo migrate --profile dev`
+4. Re-grant permissions (step 2b above)
+5. Restart Torii (step 3 above)
+6. Reload the browser
+
 ## Important Notes
 
 - Katana v1.8.14 uses `--http.port`, not `--port`
