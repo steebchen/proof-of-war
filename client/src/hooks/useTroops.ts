@@ -5,7 +5,7 @@ import { TroopType, TROOP_INFO, BuildingType, dojoConfig, NO_FEE_DETAILS } from 
 import { useResources } from './useResources'
 
 export function useTroops() {
-  const { army, setArmy, buildings, trainingQueues } = useDojo()
+  const { army, setArmy, buildings, trainingQueues, setTrainingQueues } = useDojo()
   const { account } = useAccount()
   const { canAfford } = useResources()
 
@@ -73,6 +73,33 @@ export function useTroops() {
     newArmy.totalSpaceUsed += spaceNeeded
     setArmy(newArmy)
 
+    // Optimistically update training queue for the barracks
+    const troopTimes: Record<number, number> = { [TroopType.Barbarian]: 3, [TroopType.Archer]: 5, [TroopType.Giant]: 10 }
+    const timePerUnit = troopTimes[troopType] ?? 3
+    const additionalTime = timePerUnit * quantity
+    const existingQueue = trainingQueues.find(q => q.barracksId === barracks.buildingId)
+    const prevQueues = [...trainingQueues]
+
+    let optimisticQueue
+    if (existingQueue && existingQueue.quantity > 0 && Number(existingQueue.finishTime) > now && existingQueue.troopType === troopType) {
+      optimisticQueue = {
+        owner: account.address,
+        barracksId: barracks.buildingId,
+        troopType,
+        quantity: existingQueue.quantity + quantity,
+        finishTime: existingQueue.finishTime + BigInt(additionalTime),
+      }
+    } else {
+      optimisticQueue = {
+        owner: account.address,
+        barracksId: barracks.buildingId,
+        troopType,
+        quantity,
+        finishTime: BigInt(now + additionalTime),
+      }
+    }
+    setTrainingQueues([...trainingQueues.filter(q => q.barracksId !== barracks.buildingId), optimisticQueue])
+
     try {
       await account.execute([
         {
@@ -86,9 +113,10 @@ export function useTroops() {
     } catch (error) {
       console.error('Failed to train troops:', error)
       setArmy(prevArmy)
+      setTrainingQueues(prevQueues)
       return false
     }
-  }, [account, army, buildings, trainingQueues, canAfford, setArmy])
+  }, [account, army, buildings, trainingQueues, canAfford, setArmy, setTrainingQueues])
 
   const collectTroops = useCallback(async (barracksId: number) => {
     if (!account) return false
