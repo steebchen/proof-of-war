@@ -124,3 +124,24 @@ export const SPELL_INFO: Record<SpellType, { name: string; color: string; cost: 
 
 export const SPELL_UNLOCK_TH_LEVEL = 3
 export const MAX_SPELLS_PER_BATTLE = 3
+
+// Trophy leagues
+export interface LeagueInfo {
+  name: string
+  color: string
+  minTrophies: number
+}
+
+export const LEAGUES: LeagueInfo[] = [
+  { name: 'Diamond', color: '#B9F2FF', minTrophies: 1200 },
+  { name: 'Gold', color: '#FFD700', minTrophies: 800 },
+  { name: 'Silver', color: '#C0C0C0', minTrophies: 400 },
+  { name: 'Bronze', color: '#CD7F32', minTrophies: 0 },
+]
+
+export function getLeague(trophies: number): LeagueInfo {
+  for (const league of LEAGUES) {
+    if (trophies >= league.minTrophies) return league
+  }
+  return LEAGUES[LEAGUES.length - 1]
+}

@@ -3,7 +3,7 @@ import { useAccount } from '@starknet-react/core'
 import { useAttack, BattleState } from '../../hooks/useAttack'
 import { useTroops } from '../../hooks/useTroops'
 import { useDojo, Building, Player } from '../../providers/DojoProvider'
-import { TroopType, TROOP_INFO, BuildingType, SpellType, SPELL_INFO, SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE } from '../../config/dojoConfig'
+import { TroopType, TROOP_INFO, BuildingType, SpellType, SPELL_INFO, SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE, getLeague } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -847,8 +847,8 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
                         </span>
                       </div>
                       <div style={styles.opponentStats}>
-                        <span style={styles.statBadge} title="Trophies">
-                          {opponent.trophies}
+                        <span style={{ ...styles.statBadge, backgroundColor: getLeague(opponent.trophies).color + '44', color: getLeague(opponent.trophies).color }} title="Trophies">
+                          {opponent.trophies} {getLeague(opponent.trophies).name}
                         </span>
                         <span style={styles.statBadgeTH} title="Town Hall Level">
                           TH{opponent.townHallLevel}

@@ -3,6 +3,7 @@ import { useAccount, useConnect, useDisconnect } from '@starknet-react/core'
 import { useResources } from '../../hooks/useResources'
 import { useDojo, BattleRecord } from '../../providers/DojoProvider'
 import { COLORS } from '../../utils/constants'
+import { getLeague } from '../../config/dojoConfig'
 
 export function Header() {
   const { address, isConnected } = useAccount()
@@ -121,6 +122,14 @@ export function Header() {
             </span>
             {player && (
               <>
+                {(() => {
+                  const league = getLeague(player.trophies)
+                  return (
+                    <span style={{ ...styles.leagueBadge, backgroundColor: league.color + '33', color: league.color, borderColor: league.color }}>
+                      {league.name}
+                    </span>
+                  )
+                })()}
                 <span style={styles.trophies}>
                   {player.trophies} Trophies
                 </span>
@@ -266,6 +275,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     color: '#aaa',
     fontFamily: 'monospace',
+  },
+  leagueBadge: {
+    fontSize: '12px',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    fontWeight: 'bold',
+    border: '1px solid',
   },
   trophies: {
     fontSize: '14px',
