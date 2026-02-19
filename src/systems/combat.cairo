@@ -472,6 +472,19 @@ pub mod combat_system {
                             } else {
                                 troop.target_building_id = self.find_nearest_building(@world, battle_id, battle.building_count, troop.x, troop.y);
                             }
+
+                            // Melee troops must break through walls blocking their path
+                            if troop.target_building_id > 0 && config.attack_range == 1 {
+                                let path_target: BattleBuilding = world.read_model((battle_id, troop.target_building_id));
+                                let blocking_wall = self.find_blocking_wall(
+                                    @world, battle_id, battle.building_count,
+                                    troop.x, troop.y,
+                                    path_target.x, path_target.y,
+                                );
+                                if blocking_wall > 0 {
+                                    troop.target_building_id = blocking_wall;
+                                }
+                            }
                         }
 
                         // Move toward target or attack
@@ -748,7 +761,9 @@ pub mod combat_system {
 
                 let building: BattleBuilding = world.read_model((battle_id, i));
 
-                if !building.is_destroyed {
+                // Skip walls — troops don't directly target walls; melee troops
+                // break through blocking walls via find_blocking_wall instead
+                if !building.is_destroyed && building.building_type != BuildingType::Wall {
                     let bx: u32 = building.x.into() * 10;
                     let by: u32 = building.y.into() * 10;
                     let tx: u32 = troop_x.into();
@@ -814,6 +829,82 @@ pub mod combat_system {
             };
 
             nearest_id
+        }
+
+        fn find_blocking_wall(
+            self: @ContractState,
+            world: @dojo::world::WorldStorage,
+            battle_id: u32,
+            building_count: u32,
+            troop_x: u16,
+            troop_y: u16,
+            target_grid_x: u8,
+            target_grid_y: u8,
+        ) -> u32 {
+            let mut nearest_wall_id: u32 = 0;
+            let mut nearest_dist_sq: u64 = 0xFFFFFFFFFFFFFFFF;
+
+            let tx: i64 = troop_x.into();
+            let ty: i64 = troop_y.into();
+            let tgt_x: i64 = target_grid_x.into() * 10;
+            let tgt_y: i64 = target_grid_y.into() * 10;
+
+            // Direction vector from troop to target
+            let dir_x: i64 = tgt_x - tx;
+            let dir_y: i64 = tgt_y - ty;
+            let dist_sq: i64 = dir_x * dir_x + dir_y * dir_y;
+
+            if dist_sq == 0 {
+                return 0;
+            }
+
+            // Corridor width: walls within 15px (1.5 tiles) perpendicular distance block
+            let corridor: i64 = 15;
+
+            let mut i: u32 = 1;
+            loop {
+                if i > building_count {
+                    break;
+                }
+
+                let building: BattleBuilding = world.read_model((battle_id, i));
+
+                if !building.is_destroyed && building.building_type == BuildingType::Wall {
+                    let wx: i64 = building.x.into() * 10;
+                    let wy: i64 = building.y.into() * 10;
+
+                    // Vector from troop to wall
+                    let tw_x: i64 = wx - tx;
+                    let tw_y: i64 = wy - ty;
+
+                    // Dot product: positive means wall is ahead (toward target)
+                    let dot: i64 = tw_x * dir_x + tw_y * dir_y;
+
+                    if dot > 0 {
+                        // Wall must be closer to troop than target
+                        let wall_dist: i64 = tw_x * tw_x + tw_y * tw_y;
+
+                        if wall_dist < dist_sq {
+                            // Cross product for perpendicular distance check
+                            // |cross| / sqrt(dist_sq) < corridor
+                            // => cross^2 < corridor^2 * dist_sq
+                            let cross: i64 = tw_x * dir_y - tw_y * dir_x;
+
+                            if cross * cross < corridor * corridor * dist_sq {
+                                let wd: u64 = wall_dist.try_into().unwrap();
+                                if wd < nearest_dist_sq {
+                                    nearest_dist_sq = wd;
+                                    nearest_wall_id = i;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                i += 1;
+            };
+
+            nearest_wall_id
         }
 
         fn find_nearest_troop(

@@ -991,3 +991,106 @@ fn test_lightning_spell() {
     let battle: clash_prototype::models::battle::Battle = world.read_model(0_u32);
     assert(battle.status == clash_prototype::models::battle::BattleStatus::Ended, 'Battle should end');
 }
+
+#[test]
+fn test_wall_blocking_in_combat() {
+    let attacker: ContractAddress = 'attacker'.try_into().unwrap();
+    let defender: ContractAddress = 'defender'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    let (training_address, _) = world.dns(@"training_system").unwrap();
+    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
+
+    let (combat_address, _) = world.dns(@"combat_system").unwrap();
+    let combat_dispatcher = ICombatDispatcher { contract_address: combat_address };
+
+    // Spawn attacker
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+    village_dispatcher.spawn('Attacker');
+
+    // Give attacker army
+    building_dispatcher.place_building(BuildingType::ArmyCamp, 0, 0);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Barracks, 5, 5);
+    starknet::testing::set_block_timestamp(200);
+    building_dispatcher.finish_upgrade(3);
+
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 10);
+    starknet::testing::set_block_timestamp(500);
+    training_dispatcher.collect_trained_troops(3);
+
+    // Spawn defender and place walls between edge and TH
+    starknet::testing::set_contract_address(defender);
+    starknet::testing::set_account_contract_address(defender);
+    village_dispatcher.spawn('Defender');
+
+    // Place a line of walls at grid position 10,y (between the left edge and TH at 18,18)
+    building_dispatcher.place_building(BuildingType::Wall, 10, 15);
+    starknet::testing::set_block_timestamp(510);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Wall, 10, 16);
+    starknet::testing::set_block_timestamp(520);
+    building_dispatcher.finish_upgrade(3);
+
+    building_dispatcher.place_building(BuildingType::Wall, 10, 17);
+    starknet::testing::set_block_timestamp(530);
+    building_dispatcher.finish_upgrade(4);
+
+    building_dispatcher.place_building(BuildingType::Wall, 10, 18);
+    starknet::testing::set_block_timestamp(540);
+    building_dispatcher.finish_upgrade(5);
+
+    building_dispatcher.place_building(BuildingType::Wall, 10, 19);
+    starknet::testing::set_block_timestamp(550);
+    building_dispatcher.finish_upgrade(6);
+
+    building_dispatcher.place_building(BuildingType::Wall, 10, 20);
+    starknet::testing::set_block_timestamp(560);
+    building_dispatcher.finish_upgrade(7);
+
+    // Attack with barbarians deployed from the left edge (near the walls)
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    combat_dispatcher.start_attack(defender);
+
+    // Deploy troops from left edge (pixel coords ~5,180 = close to grid 0,18)
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 180);
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 170);
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 190);
+
+    combat_dispatcher.resolve_battle(0);
+
+    // Verify the battle completed
+    let battle: clash_prototype::models::battle::Battle = world.read_model(0_u32);
+    assert(battle.status == clash_prototype::models::battle::BattleStatus::Ended, 'Battle should end');
+
+    // Walls should have been engaged — check that at least some walls took damage
+    // Wall building IDs are 2-7 for defender (building 1 is TH)
+    let mut walls_damaged = false;
+    let mut bi: u32 = 1;
+    loop {
+        if bi > battle.building_count {
+            break;
+        }
+        let bb: clash_prototype::models::battle::BattleBuilding = world.read_model((0_u32, bi));
+        if bb.building_type == BuildingType::Wall && (bb.is_destroyed || bb.current_health < bb.max_health) {
+            walls_damaged = true;
+        }
+        bi += 1;
+    };
+    assert(walls_damaged, 'Walls should take damage');
+}

@@ -110,7 +110,24 @@ function runReplaySimulation(
 
       // Find nearest building if no target
       if (troop.targetBuildingId === 0) {
-        troop.targetBuildingId = findNearestBuilding(troop.x, troop.y, buildings)
+        // Giants target defenses first
+        if (troop.type === TroopType.Giant) {
+          const defense = findNearestDefense(troop.x, troop.y, buildings)
+          troop.targetBuildingId = defense > 0 ? defense : findNearestBuilding(troop.x, troop.y, buildings)
+        } else {
+          troop.targetBuildingId = findNearestBuilding(troop.x, troop.y, buildings)
+        }
+
+        // Melee troops must break through blocking walls
+        if (troop.targetBuildingId > 0 && config.attackRange === 1) {
+          const target = buildings.find(b => b.buildingId === troop.targetBuildingId)
+          if (target) {
+            const wallId = findBlockingWall(troop.x, troop.y, target.x, target.y, buildings)
+            if (wallId > 0) {
+              troop.targetBuildingId = wallId
+            }
+          }
+        }
       }
 
       if (troop.targetBuildingId > 0) {
@@ -213,11 +230,13 @@ function captureSnapshot(troops: SimTroop[], buildings: SimBuilding[]): TickSnap
   }
 }
 
-function findNearestBuilding(tx: number, ty: number, buildings: SimBuilding[]): number {
+function findNearestBuilding(tx: number, ty: number, buildings: SimBuilding[], skipWalls = true): number {
   let nearestId = 0
   let nearestDist = Infinity
   for (const b of buildings) {
     if (b.destroyed) continue
+    // Skip walls — troops don't directly target walls
+    if (skipWalls && b.buildingType === BuildingType.Wall) continue
     const bx = b.x * 10
     const by = b.y * 10
     const dx = tx - bx
@@ -229,6 +248,69 @@ function findNearestBuilding(tx: number, ty: number, buildings: SimBuilding[]): 
     }
   }
   return nearestId
+}
+
+function findNearestDefense(tx: number, ty: number, buildings: SimBuilding[]): number {
+  let nearestId = 0
+  let nearestDist = Infinity
+  for (const b of buildings) {
+    if (b.destroyed) continue
+    if (b.buildingType !== BuildingType.Cannon && b.buildingType !== BuildingType.ArcherTower) continue
+    const bx = b.x * 10
+    const by = b.y * 10
+    const dx = tx - bx
+    const dy = ty - by
+    const dist = dx * dx + dy * dy
+    if (dist < nearestDist) {
+      nearestDist = dist
+      nearestId = b.buildingId
+    }
+  }
+  return nearestId
+}
+
+function findBlockingWall(
+  troopX: number, troopY: number,
+  targetGridX: number, targetGridY: number,
+  buildings: SimBuilding[],
+): number {
+  const tgtX = targetGridX * 10
+  const tgtY = targetGridY * 10
+  const dirX = tgtX - troopX
+  const dirY = tgtY - troopY
+  const distSq = dirX * dirX + dirY * dirY
+  if (distSq === 0) return 0
+
+  const corridor = 15 // 1.5 tiles
+  let nearestWallId = 0
+  let nearestDist = Infinity
+
+  for (const b of buildings) {
+    if (b.destroyed || b.buildingType !== BuildingType.Wall) continue
+    const wx = b.x * 10
+    const wy = b.y * 10
+    const twX = wx - troopX
+    const twY = wy - troopY
+
+    // Dot product: wall must be ahead (toward target)
+    const dot = twX * dirX + twY * dirY
+    if (dot <= 0) continue
+
+    // Wall must be closer than target
+    const wallDistSq = twX * twX + twY * twY
+    if (wallDistSq >= distSq) continue
+
+    // Perpendicular distance check via cross product
+    const cross = twX * dirY - twY * dirX
+    if (cross * cross < corridor * corridor * distSq) {
+      if (wallDistSq < nearestDist) {
+        nearestDist = wallDistSq
+        nearestWallId = b.buildingId
+      }
+    }
+  }
+
+  return nearestWallId
 }
 
 export function AttackScreen({ onClose }: AttackScreenProps) {
