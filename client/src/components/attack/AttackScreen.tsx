@@ -342,7 +342,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   // Invalid click feedback
   const [invalidClickPos, setInvalidClickPos] = useState<{ x: number; y: number } | null>(null)
 
-  // Attack cooldown (30 seconds)
+  // Attack cooldown (5 seconds) — display only, on-chain check is the real enforcer
+  // Note: blockchain timestamps may differ from Date.now(), so we only show cooldown
+  // when elapsed is positive (i.e. lastAttackAt is in the past relative to wall clock)
   const ATTACK_COOLDOWN = 5
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
 
@@ -351,7 +353,8 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     const tick = () => {
       const now = Math.floor(Date.now() / 1000)
       const elapsed = now - Number(player.lastAttackAt)
-      const remaining = Math.max(0, ATTACK_COOLDOWN - elapsed)
+      // If elapsed is negative, blockchain time is ahead of wall clock — no cooldown to show
+      const remaining = elapsed >= 0 ? Math.max(0, ATTACK_COOLDOWN - elapsed) : 0
       setCooldownRemaining(remaining)
     }
     tick()
