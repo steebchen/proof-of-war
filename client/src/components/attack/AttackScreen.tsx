@@ -266,6 +266,8 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [replayTick, setReplayTick] = useState(0)
   const replayRef = useRef<number | null>(null)
   const [battleResult, setBattleResult] = useState<BattleState | null>(null)
+  const [replaySpeed, setReplaySpeed] = useState(1)
+  const [replayPaused, setReplayPaused] = useState(false)
 
   // Camera
   const MIN_ZOOM = 0.5
@@ -535,22 +537,29 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
   // Replay animation loop
   useEffect(() => {
-    if (phase !== 'replay' || replaySnapshots.length === 0) return
+    if (phase !== 'replay' || replaySnapshots.length === 0 || replayPaused) return
 
-    let tick = 0
     const interval = setInterval(() => {
-      tick++
-      if (tick >= replaySnapshots.length) {
-        clearInterval(interval)
-        setPhase('result')
-        return
-      }
-      setReplayTick(tick)
-    }, 100) // 10fps
+      setReplayTick(prev => {
+        const next = prev + 1
+        if (next >= replaySnapshots.length) {
+          clearInterval(interval)
+          setPhase('result')
+          return prev
+        }
+        return next
+      })
+    }, 100 / replaySpeed)
 
     replayRef.current = interval as unknown as number
     return () => clearInterval(interval)
-  }, [phase, replaySnapshots])
+  }, [phase, replaySnapshots, replaySpeed, replayPaused])
+
+  const handleSkipReplay = useCallback(() => {
+    if (replayRef.current) clearInterval(replayRef.current)
+    setReplayTick(replaySnapshots.length - 1)
+    setPhase('result')
+  }, [replaySnapshots])
 
   // Scout: fetch defender buildings
   const handleScout = async () => {
@@ -989,6 +998,42 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
               </div>
             )}
 
+            {/* Replay controls */}
+            {phase === 'replay' && replaySnapshots.length > 0 && (
+              <div style={styles.replayControls}>
+                <button
+                  style={styles.replayCtrlBtn}
+                  onClick={() => setReplayPaused(p => !p)}
+                >
+                  {replayPaused ? 'Play' : 'Pause'}
+                </button>
+                {[1, 2, 4].map(speed => (
+                  <button
+                    key={speed}
+                    style={{
+                      ...styles.replayCtrlBtn,
+                      backgroundColor: replaySpeed === speed ? '#c0392b' : '#333',
+                    }}
+                    onClick={() => setReplaySpeed(speed)}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+                <button style={{ ...styles.replayCtrlBtn, backgroundColor: '#8e44ad' }} onClick={handleSkipReplay}>
+                  Skip
+                </button>
+                <div style={styles.replayProgress}>
+                  <div style={{
+                    ...styles.replayProgressFill,
+                    width: `${(replayTick / (replaySnapshots.length - 1)) * 100}%`,
+                  }} />
+                </div>
+                <span style={{ fontSize: '12px', color: '#888' }}>
+                  {replayTick}/{replaySnapshots.length - 1}
+                </span>
+              </div>
+            )}
+
             {/* Battle result overlay */}
             {phase === 'result' && battleResult && (
               <div style={styles.resultOverlay}>
@@ -1219,6 +1264,40 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '8px',
     marginBottom: '12px',
+  },
+  replayControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginTop: '12px',
+    justifyContent: 'center',
+    padding: '8px 12px',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '8px',
+  },
+  replayCtrlBtn: {
+    padding: '6px 12px',
+    backgroundColor: '#333',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '12px',
+  },
+  replayProgress: {
+    flex: 1,
+    height: '6px',
+    backgroundColor: '#333',
+    borderRadius: '3px',
+    overflow: 'hidden',
+    minWidth: '100px',
+  },
+  replayProgressFill: {
+    height: '100%',
+    backgroundColor: '#c0392b',
+    borderRadius: '3px',
+    transition: 'width 0.1s linear',
   },
   returnBtn: {
     padding: '12px 32px',
