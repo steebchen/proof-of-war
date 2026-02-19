@@ -189,7 +189,8 @@ pub const SHIELD_DURATION: u64 = 14400; // 4 hours
 pub const BATTLE_DURATION: u64 = 3600; // 1 hour (generous for dev/testing)
 
 // Number of simulation ticks per battle resolve
-pub const TICKS_PER_BATTLE: u32 = 60;
+// With movement speed 8, troops cross ~150px in ~19 ticks. 30 ticks is enough.
+pub const TICKS_PER_BATTLE: u32 = 30;
 
 // Trophy gains/losses
 pub const TROPHY_WIN_BASE: i32 = 30;

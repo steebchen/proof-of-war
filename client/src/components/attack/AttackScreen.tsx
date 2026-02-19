@@ -32,7 +32,7 @@ const DEFENSE_STATS: Record<number, { damage: (level: number) => number; range: 
   [BuildingType.ArcherTower]: { damage: (level: number) => 6 + level * 1, range: 10 },
 }
 
-const TICKS_PER_BATTLE = 60
+const TICKS_PER_BATTLE = 30
 const DEPLOY_ZONE_DEPTH = 3 // tiles from edge
 
 interface DeployedTroopLocal {
