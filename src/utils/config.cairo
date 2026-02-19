@@ -198,3 +198,16 @@ pub const TROPHY_LOSS_BASE: i32 = -20;
 // Loot percentages (percentage of stored resources that can be stolen)
 pub const LOOT_PERCENTAGE: u64 = 20; // 20% of stored resources
 pub const LOOT_PROTECTION: u64 = 500; // Resources below this threshold cannot be looted
+
+// Spell system
+pub const SPELL_UNLOCK_TH_LEVEL: u8 = 3; // Town Hall level required to use spells
+pub const MAX_SPELLS_PER_BATTLE: u32 = 3; // Maximum spells per battle
+pub const SPELL_RADIUS: u32 = 30; // Spell effect radius in pixel coords (3 tiles * 10)
+
+pub const LIGHTNING_COST_DIAMOND: u64 = 100;
+pub const LIGHTNING_DAMAGE: u32 = 200;
+
+pub const HEAL_COST_DIAMOND: u64 = 75;
+pub const HEAL_AMOUNT: u32 = 150;
+
+pub const RAGE_COST_DIAMOND: u64 = 150;

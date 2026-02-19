@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { TroopType, dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
+import { TroopType, SpellType, dojoConfig, NO_FEE_DETAILS } from '../config/dojoConfig'
 import { useDojo, BattleResultData } from '../providers/DojoProvider'
 
 export interface BattleState {
@@ -124,6 +124,32 @@ export function useAttack() {
     }
   }, [account, currentBattle, fetchBattleData])
 
+  const deploySpell = useCallback(async (battleId: number, spellType: SpellType, x: number, y: number) => {
+    if (!account || !currentBattle) return false
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.combatSystemAddress,
+          entrypoint: 'deploy_spell',
+          calldata: [battleId, spellType, x, y],
+        },
+      ], NO_FEE_DETAILS)
+
+      if (currentBattle.status === 'preparing') {
+        setCurrentBattle({
+          ...currentBattle,
+          status: 'inProgress',
+        })
+      }
+
+      return true
+    } catch (error) {
+      console.error('Failed to deploy spell:', error)
+      return false
+    }
+  }, [account, currentBattle])
+
   const cancelAttack = useCallback(() => {
     setCurrentBattle(null)
     setIsAttacking(false)
@@ -135,6 +161,7 @@ export function useAttack() {
     setCurrentBattle,
     startAttack,
     deployTroop,
+    deploySpell,
     resolveBattle,
     cancelAttack,
   }

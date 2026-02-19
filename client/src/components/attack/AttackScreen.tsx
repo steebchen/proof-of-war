@@ -3,7 +3,7 @@ import { useAccount } from '@starknet-react/core'
 import { useAttack, BattleState } from '../../hooks/useAttack'
 import { useTroops } from '../../hooks/useTroops'
 import { useDojo, Building, Player } from '../../providers/DojoProvider'
-import { TroopType, TROOP_INFO, BuildingType } from '../../config/dojoConfig'
+import { TroopType, TROOP_INFO, BuildingType, SpellType, SPELL_INFO, SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -235,9 +235,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { address } = useAccount()
-  const { currentBattle, startAttack, deployTroop, resolveBattle, cancelAttack } = useAttack()
+  const { currentBattle, startAttack, deployTroop, deploySpell, resolveBattle, cancelAttack } = useAttack()
   const { barbarians, archers, giants } = useTroops()
-  const { fetchDefenderBuildings, fetchAllPlayers } = useDojo()
+  const { fetchDefenderBuildings, fetchAllPlayers, player } = useDojo()
   const [selectedTroop, setSelectedTroop] = useState<TroopType | null>(null)
   const [targetAddress, setTargetAddress] = useState('')
   const [defenderBuildings, setDefenderBuildings] = useState<Building[]>([])
@@ -288,6 +288,13 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   useEffect(() => { setLocalBarbarians(barbarians) }, [barbarians])
   useEffect(() => { setLocalArchers(archers) }, [archers])
   useEffect(() => { setLocalGiants(giants) }, [giants])
+
+  // Spell state
+  const [deployMode, setDeployMode] = useState<'troop' | 'spell'>('troop')
+  const [selectedSpell, setSelectedSpell] = useState<SpellType | null>(null)
+  const [spellsUsed, setSpellsUsed] = useState(0)
+  const [deployedSpells, setDeployedSpells] = useState<{ id: number; type: SpellType; x: number; y: number }[]>([])
+  const canUseSpells = (player?.townHallLevel ?? 0) >= SPELL_UNLOCK_TH_LEVEL
 
   // Load sprites
   useEffect(() => {
@@ -485,6 +492,30 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       ctx.fillRect(tBarX, tBarY, tBarW * hpPct, tBarH)
     }
 
+    // Draw deployed spell indicators
+    for (const spell of deployedSpells) {
+      const gridX = spell.x / 10
+      const gridY = spell.y / 10
+      const screen = gridToScreen(gridX, gridY)
+      const info = SPELL_INFO[spell.type]
+
+      // Spell radius circle
+      ctx.beginPath()
+      ctx.arc(screen.x, screen.y, 20, 0, Math.PI * 2)
+      ctx.fillStyle = info.color + '33' // translucent
+      ctx.fill()
+      ctx.strokeStyle = info.color
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Spell icon
+      ctx.fillStyle = info.color
+      ctx.font = 'bold 10px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(info.name[0], screen.x, screen.y)
+    }
+
     // HUD during replay
     if (phase === 'replay' && currentSnapshot) {
       ctx.resetTransform()
@@ -498,7 +529,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       ctx.fillText(`Tick: ${replayTick}/${replaySnapshots.length - 1}`, 20, 18)
       ctx.fillText(`Destruction: ${currentSnapshot.destructionPercent}%`, 20, 38)
     }
-  }, [canvasSize, getTransform, defenderBuildings, deployedTroops, phase, replaySnapshots, replayTick, isDeployZone, spritesLoaded, camTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canvasSize, getTransform, defenderBuildings, deployedTroops, deployedSpells, phase, replaySnapshots, replayTick, isDeployZone, spritesLoaded, camTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { draw() }, [draw])
 
@@ -547,21 +578,32 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
   // Deploy troop on canvas click
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (phase !== 'deploy' || !currentBattle || selectedTroop === null) return
+    if (phase !== 'deploy' || !currentBattle) return
 
     const pos = clientToLogical(e.clientX, e.clientY)
     const { gx, gy } = screenToGrid(pos.x, pos.y)
+    const pixelX = gx * 10
+    const pixelY = gy * 10
 
+    if (deployMode === 'spell' && selectedSpell !== null) {
+      // Deploy spell anywhere on the grid
+      if (gx < 0 || gy < 0 || gx >= GRID_SIZE || gy >= GRID_SIZE) return
+      if (spellsUsed >= MAX_SPELLS_PER_BATTLE) return
+
+      deploySpell(currentBattle.battleId, selectedSpell, pixelX, pixelY)
+      setDeployedSpells(prev => [...prev, { id: prev.length + 1, type: selectedSpell, x: pixelX, y: pixelY }])
+      setSpellsUsed(prev => prev + 1)
+      return
+    }
+
+    // Troop deployment
+    if (selectedTroop === null) return
     if (!isDeployZone(gx, gy)) return
 
     // Check troop availability
     if (selectedTroop === TroopType.Barbarian && localBarbarians <= 0) return
     if (selectedTroop === TroopType.Archer && localArchers <= 0) return
     if (selectedTroop === TroopType.Giant && localGiants <= 0) return
-
-    // Scale grid coords to pixel coords for contract (grid_x * 10, grid_y * 10)
-    const pixelX = gx * 10
-    const pixelY = gy * 10
 
     // Deploy on-chain
     deployTroop(currentBattle.battleId, selectedTroop, pixelX, pixelY)
@@ -578,7 +620,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     } else if (selectedTroop === TroopType.Giant) {
       setLocalGiants(prev => prev - 1)
     }
-  }, [phase, currentBattle, selectedTroop, localBarbarians, localArchers, localGiants, deployTroop, deployedTroops, clientToLogical, isDeployZone])
+  }, [phase, currentBattle, selectedTroop, selectedSpell, deployMode, localBarbarians, localArchers, localGiants, spellsUsed, deployTroop, deploySpell, deployedTroops, clientToLogical, isDeployZone])
 
   // Launch attack (resolve)
   const handleLaunchAttack = async () => {
@@ -852,32 +894,78 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
               />
             </div>
 
-            {/* Troop selector (deploy phase only) */}
+            {/* Troop & spell selector (deploy phase only) */}
             {phase === 'deploy' && (
               <>
-                <div style={styles.troopSelector}>
-                  <span>Select Troop:</span>
-                  {Object.entries(TROOP_INFO).map(([type, info]) => {
-                    const count = Number(type) === TroopType.Barbarian ? localBarbarians
-                      : Number(type) === TroopType.Giant ? localGiants
-                      : localArchers
-                    return (
+                {/* Mode toggle */}
+                <div style={styles.modeToggle}>
+                  <button
+                    style={{
+                      ...styles.modeBtn,
+                      backgroundColor: deployMode === 'troop' ? '#c0392b' : '#333',
+                    }}
+                    onClick={() => { setDeployMode('troop'); setSelectedSpell(null) }}
+                  >
+                    Troops
+                  </button>
+                  {canUseSpells && (
+                    <button
+                      style={{
+                        ...styles.modeBtn,
+                        backgroundColor: deployMode === 'spell' ? '#8e44ad' : '#333',
+                      }}
+                      onClick={() => { setDeployMode('spell'); setSelectedTroop(null) }}
+                    >
+                      Spells ({spellsUsed}/{MAX_SPELLS_PER_BATTLE})
+                    </button>
+                  )}
+                </div>
+
+                {deployMode === 'troop' ? (
+                  <div style={styles.troopSelector}>
+                    <span>Select Troop:</span>
+                    {Object.entries(TROOP_INFO).map(([type, info]) => {
+                      const count = Number(type) === TroopType.Barbarian ? localBarbarians
+                        : Number(type) === TroopType.Giant ? localGiants
+                        : localArchers
+                      return (
+                        <button
+                          key={type}
+                          style={{
+                            ...styles.troopBtn,
+                            backgroundColor: info.color,
+                            opacity: count > 0 ? 1 : 0.5,
+                            border: selectedTroop === Number(type) ? '3px solid #fff' : '3px solid transparent',
+                          }}
+                          onClick={() => setSelectedTroop(Number(type) as TroopType)}
+                          disabled={count === 0}
+                        >
+                          {info.name} ({count})
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div style={styles.troopSelector}>
+                    <span>Select Spell:</span>
+                    {Object.entries(SPELL_INFO).map(([type, info]) => (
                       <button
                         key={type}
                         style={{
                           ...styles.troopBtn,
                           backgroundColor: info.color,
-                          opacity: count > 0 ? 1 : 0.5,
-                          border: selectedTroop === Number(type) ? '3px solid #fff' : '3px solid transparent',
+                          opacity: spellsUsed < MAX_SPELLS_PER_BATTLE ? 1 : 0.5,
+                          border: selectedSpell === Number(type) ? '3px solid #fff' : '3px solid transparent',
                         }}
-                        onClick={() => setSelectedTroop(Number(type) as TroopType)}
-                        disabled={count === 0}
+                        onClick={() => setSelectedSpell(Number(type) as SpellType)}
+                        disabled={spellsUsed >= MAX_SPELLS_PER_BATTLE}
+                        title={info.description}
                       >
-                        {info.name} ({count})
+                        {info.name} ({info.cost}d)
                       </button>
-                    )
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
 
                 <div style={styles.actions}>
                   <button
@@ -1071,6 +1159,21 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     height: '100%',
     cursor: 'crosshair',
+  },
+  modeToggle: {
+    display: 'flex',
+    gap: '8px',
+    justifyContent: 'center',
+    marginTop: '12px',
+  },
+  modeBtn: {
+    padding: '6px 16px',
+    border: 'none',
+    borderRadius: '6px',
+    color: '#fff',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '13px',
   },
   troopSelector: {
     display: 'flex',

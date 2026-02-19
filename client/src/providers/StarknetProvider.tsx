@@ -50,6 +50,7 @@ const cartridgeConnector = new ControllerConnector({
           // Combat system
           { name: 'start_attack', entrypoint: 'start_attack' },
           { name: 'deploy_troop', entrypoint: 'deploy_troop' },
+          { name: 'deploy_spell', entrypoint: 'deploy_spell' },
           { name: 'process_combat', entrypoint: 'process_combat' },
           { name: 'end_battle', entrypoint: 'end_battle' },
         ],

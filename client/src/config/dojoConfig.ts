@@ -108,3 +108,19 @@ export const TROOP_INFO: Record<TroopType, { name: string; color: string; cost: 
   [TroopType.Archer]: { name: 'Archer', color: '#FF69B4', cost: 50, space: 1 },
   [TroopType.Giant]: { name: 'Giant', color: '#8B4513', cost: 150, space: 5 },
 }
+
+// Spell types (must match Cairo)
+export enum SpellType {
+  Lightning = 0,
+  Heal = 1,
+  Rage = 2,
+}
+
+export const SPELL_INFO: Record<SpellType, { name: string; color: string; cost: number; description: string }> = {
+  [SpellType.Lightning]: { name: 'Lightning', color: '#FFD700', cost: 100, description: 'Deals 200 damage to buildings in area' },
+  [SpellType.Heal]: { name: 'Heal', color: '#2ECC71', cost: 75, description: 'Heals troops in area by 150 HP' },
+  [SpellType.Rage]: { name: 'Rage', color: '#E74C3C', cost: 150, description: 'Doubles troop damage in area' },
+}
+
+export const SPELL_UNLOCK_TH_LEVEL = 3
+export const MAX_SPELLS_PER_BATTLE = 3

@@ -10,13 +10,13 @@ use clash_prototype::models::player::{Player, m_Player};
 use clash_prototype::models::building::{Building, BuildingType, m_Building};
 use clash_prototype::models::army::{Army, BuilderQueue, m_Army, m_BuilderQueue, m_TrainingQueue};
 use clash_prototype::models::battle::{
-    m_Battle, m_DeployedTroop, m_BattleBuilding, m_BattleCounter,
+    m_Battle, m_DeployedTroop, m_BattleBuilding, m_BattleCounter, m_DeployedSpell, SpellType,
 };
 use clash_prototype::systems::village::{village, IVillageDispatcher, IVillageDispatcherTrait, e_PlayerSpawned};
 use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded, e_BuildingRemoved, e_BuildingRepaired};
 use clash_prototype::systems::training::{training_system, ITrainingDispatcher, ITrainingDispatcherTrait, e_TroopsTrainingStarted, e_TroopsCollected};
 use clash_prototype::systems::resource::{resource_system, IResourceDispatcher, IResourceDispatcherTrait, e_ResourcesCollected};
-use clash_prototype::systems::combat::{combat_system, e_BattleStarted, e_TroopDeployed, e_BattleEnded};
+use clash_prototype::systems::combat::{combat_system, e_BattleStarted, e_TroopDeployed, e_SpellDeployed, e_BattleEnded};
 use clash_prototype::models::troop::TroopType;
 use clash_prototype::systems::combat::{ICombatDispatcher, ICombatDispatcherTrait};
 use clash_prototype::utils::config::{STARTING_DIAMOND, STARTING_GAS};
@@ -34,6 +34,7 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_DeployedTroop::TEST_CLASS_HASH),
             TestResource::Model(m_BattleBuilding::TEST_CLASS_HASH),
             TestResource::Model(m_BattleCounter::TEST_CLASS_HASH),
+            TestResource::Model(m_DeployedSpell::TEST_CLASS_HASH),
             TestResource::Event(e_PlayerSpawned::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingPlaced::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingUpgraded::TEST_CLASS_HASH),
@@ -44,6 +45,7 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Event(e_ResourcesCollected::TEST_CLASS_HASH),
             TestResource::Event(e_BattleStarted::TEST_CLASS_HASH),
             TestResource::Event(e_TroopDeployed::TEST_CLASS_HASH),
+            TestResource::Event(e_SpellDeployed::TEST_CLASS_HASH),
             TestResource::Event(e_BattleEnded::TEST_CLASS_HASH),
             TestResource::Contract(village::TEST_CLASS_HASH),
             TestResource::Contract(building_system::TEST_CLASS_HASH),
@@ -902,4 +904,90 @@ fn test_battle_damage_applied() {
     // But it should still exist (health >= 1)
     assert(th_after.health >= 1, 'Building should survive');
     assert(th_after.health <= th_health_before, 'Health should not increase');
+}
+
+#[test]
+fn test_lightning_spell() {
+    let attacker: ContractAddress = 'attacker'.try_into().unwrap();
+    let defender: ContractAddress = 'defender'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    let (training_address, _) = world.dns(@"training_system").unwrap();
+    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
+
+    let (combat_address, _) = world.dns(@"combat_system").unwrap();
+    let combat_dispatcher = ICombatDispatcher { contract_address: combat_address };
+
+    // Spawn attacker
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+    village_dispatcher.spawn('Attacker');
+
+    // Upgrade TH to level 3 so spells are unlocked
+    // Give attacker enough resources by writing directly
+    let mut attacker_player: Player = world.read_model(attacker);
+    attacker_player.diamond = 50000;
+    attacker_player.gas = 50000;
+    attacker_player.town_hall_level = 3;
+    starknet::testing::set_contract_address(building_address);
+    starknet::testing::set_account_contract_address(building_address);
+    world.write_model(@attacker_player);
+
+    // Switch back to attacker
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    // Build army camp + barracks
+    building_dispatcher.place_building(BuildingType::ArmyCamp, 0, 0);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Barracks, 5, 5);
+    starknet::testing::set_block_timestamp(200);
+    building_dispatcher.finish_upgrade(3);
+
+    // Train barbarians
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
+    starknet::testing::set_block_timestamp(500);
+    training_dispatcher.collect_trained_troops(3);
+
+    // Spawn defender
+    starknet::testing::set_contract_address(defender);
+    starknet::testing::set_account_contract_address(defender);
+    village_dispatcher.spawn('Defender');
+
+    // Attack defender
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    let diamond_before: Player = world.read_model(attacker);
+    let diamond_before_val = diamond_before.diamond;
+
+    combat_dispatcher.start_attack(defender);
+
+    // Deploy a spell (Lightning at defender's TH position ~180,180 in pixel coords)
+    combat_dispatcher.deploy_spell(0, SpellType::Lightning, 180, 180);
+
+    // Check diamond was deducted (100 for Lightning)
+    let diamond_after: Player = world.read_model(attacker);
+    assert(diamond_after.diamond == diamond_before_val - 100, 'Spell should cost diamond');
+
+    // Deploy a troop and resolve
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
+    combat_dispatcher.resolve_battle(0);
+
+    // The lightning spell should have dealt 200 damage to defender's TH
+    // (TH at 18,18 grid = 180,180 pixel coords, within spell radius of 30 pixels)
+    // Verify battle completed successfully
+    let battle: clash_prototype::models::battle::Battle = world.read_model(0_u32);
+    assert(battle.status == clash_prototype::models::battle::BattleStatus::Ended, 'Battle should end');
 }

@@ -1,10 +1,12 @@
 use starknet::ContractAddress;
 use clash_prototype::models::troop::TroopType;
+use clash_prototype::models::battle::SpellType;
 
 #[starknet::interface]
 pub trait ICombat<T> {
     fn start_attack(ref self: T, defender: ContractAddress);
     fn deploy_troop(ref self: T, battle_id: u32, troop_type: TroopType, x: u16, y: u16);
+    fn deploy_spell(ref self: T, battle_id: u32, spell_type: SpellType, x: u16, y: u16);
     fn resolve_battle(ref self: T, battle_id: u32);
 }
 
@@ -30,6 +32,17 @@ pub struct TroopDeployed {
 
 #[derive(Copy, Drop, Serde)]
 #[dojo::event]
+pub struct SpellDeployed {
+    #[key]
+    pub battle_id: u32,
+    pub spell_id: u32,
+    pub spell_type: SpellType,
+    pub x: u16,
+    pub y: u16,
+}
+
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
 pub struct BattleEnded {
     #[key]
     pub battle_id: u32,
@@ -42,7 +55,7 @@ pub struct BattleEnded {
 
 #[dojo::contract]
 pub mod combat_system {
-    use super::{ICombat, BattleStarted, TroopDeployed, BattleEnded};
+    use super::{ICombat, BattleStarted, TroopDeployed, SpellDeployed, BattleEnded};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::ModelStorage;
     use dojo::event::EventStorage;
@@ -52,11 +65,13 @@ pub mod combat_system {
     use clash_prototype::models::army::Army;
     use clash_prototype::models::troop::{TroopType, get_troop_config, targets_defenses};
     use clash_prototype::models::battle::{
-        Battle, BattleStatus, DeployedTroop, BattleBuilding, BattleCounter
+        Battle, BattleStatus, DeployedTroop, BattleBuilding, BattleCounter, SpellType, DeployedSpell
     };
     use clash_prototype::utils::config::{
         BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE, LOOT_PROTECTION,
-        TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats, get_building_health
+        TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats, get_building_health,
+        SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE, SPELL_RADIUS,
+        LIGHTNING_COST_DIAMOND, LIGHTNING_DAMAGE, HEAL_COST_DIAMOND, HEAL_AMOUNT, RAGE_COST_DIAMOND
     };
 
     #[abi(embed_v0)]
@@ -116,6 +131,7 @@ pub mod combat_system {
                 attacker_trophies_change: 0,
                 defender_trophies_change: 0,
                 deployed_troop_count: 0,
+                deployed_spell_count: 0,
                 building_count: 0,
                 tick_count: 0,
             };
@@ -233,6 +249,7 @@ pub mod combat_system {
                 health: config.health,
                 is_alive: true,
                 target_building_id: 0,
+                damage_multiplier: 1,
             };
             world.write_model(@deployed);
 
@@ -253,6 +270,61 @@ pub mod combat_system {
             });
         }
 
+        fn deploy_spell(ref self: ContractState, battle_id: u32, spell_type: SpellType, x: u16, y: u16) {
+            let mut world = self.world_default();
+            let player = get_caller_address();
+            let current_time = get_block_timestamp();
+
+            // Get battle
+            let mut battle: Battle = world.read_model(battle_id);
+            assert(battle.attacker == player, 'Not the attacker');
+            assert(battle.status == BattleStatus::Preparing || battle.status == BattleStatus::InProgress, 'Battle not active');
+            assert(current_time <= battle.ends_at, 'Battle expired');
+            assert(battle.deployed_spell_count < MAX_SPELLS_PER_BATTLE, 'Max spells reached');
+
+            // Check bounds
+            assert(x < 400 && y < 400, 'Out of bounds');
+
+            // Check TH level requirement and deduct cost
+            let mut attacker: Player = world.read_model(player);
+            assert(attacker.town_hall_level >= SPELL_UNLOCK_TH_LEVEL, 'TH level too low for spells');
+            let cost = match spell_type {
+                SpellType::Lightning => LIGHTNING_COST_DIAMOND,
+                SpellType::Heal => HEAL_COST_DIAMOND,
+                SpellType::Rage => RAGE_COST_DIAMOND,
+            };
+            assert(attacker.diamond >= cost, 'Not enough diamond');
+            attacker.diamond -= cost;
+            world.write_model(@attacker);
+
+            // Create deployed spell
+            let spell_id = battle.deployed_spell_count + 1;
+            let spell = DeployedSpell {
+                battle_id,
+                spell_id,
+                spell_type,
+                x,
+                y,
+            };
+            world.write_model(@spell);
+
+            // Update battle
+            battle.deployed_spell_count += 1;
+            if battle.status == BattleStatus::Preparing {
+                battle.status = BattleStatus::InProgress;
+            }
+            world.write_model(@battle);
+
+            // Emit event
+            world.emit_event(@SpellDeployed {
+                battle_id,
+                spell_id,
+                spell_type,
+                x,
+                y,
+            });
+        }
+
         fn resolve_battle(ref self: ContractState, battle_id: u32) {
             let mut world = self.world_default();
             let caller = get_caller_address();
@@ -262,6 +334,103 @@ pub mod combat_system {
             assert(battle.attacker == caller, 'Not the attacker');
             assert(battle.status == BattleStatus::InProgress, 'Battle not in progress');
             assert(battle.deployed_troop_count > 0, 'No troops deployed');
+
+            // === Apply spells before simulation ===
+            let mut spell_idx: u32 = 1;
+            loop {
+                if spell_idx > battle.deployed_spell_count {
+                    break;
+                }
+                let spell: DeployedSpell = world.read_model((battle_id, spell_idx));
+                let radius_sq: u32 = SPELL_RADIUS * SPELL_RADIUS;
+
+                match spell.spell_type {
+                    SpellType::Lightning => {
+                        // Deal damage to all buildings in radius
+                        let mut bi: u32 = 1;
+                        loop {
+                            if bi > battle.building_count {
+                                break;
+                            }
+                            let mut building: BattleBuilding = world.read_model((battle_id, bi));
+                            if !building.is_destroyed {
+                                let bx: u32 = building.x.into() * 10;
+                                let by: u32 = building.y.into() * 10;
+                                let sx: u32 = spell.x.into();
+                                let sy: u32 = spell.y.into();
+                                let dx: u32 = if sx > bx { sx - bx } else { bx - sx };
+                                let dy: u32 = if sy > by { sy - by } else { by - sy };
+                                let dist_sq = dx * dx + dy * dy;
+                                if dist_sq <= radius_sq {
+                                    if building.current_health <= LIGHTNING_DAMAGE {
+                                        building.current_health = 0;
+                                        building.is_destroyed = true;
+                                        battle.diamond_stolen += building.diamond_loot;
+                                        battle.gas_stolen += building.gas_loot;
+                                        let destroyed_count = self.count_destroyed_buildings(@world, battle_id, battle.building_count);
+                                        battle.destruction_percent = ((destroyed_count * 100) / battle.building_count).try_into().unwrap();
+                                    } else {
+                                        building.current_health -= LIGHTNING_DAMAGE;
+                                    }
+                                    world.write_model(@building);
+                                }
+                            }
+                            bi += 1;
+                        };
+                    },
+                    SpellType::Heal => {
+                        // Heal all troops in radius
+                        let mut ti: u32 = 1;
+                        loop {
+                            if ti > battle.deployed_troop_count {
+                                break;
+                            }
+                            let mut troop: DeployedTroop = world.read_model((battle_id, ti));
+                            if troop.is_alive {
+                                let tx: u32 = troop.x.into();
+                                let ty: u32 = troop.y.into();
+                                let sx: u32 = spell.x.into();
+                                let sy: u32 = spell.y.into();
+                                let dx: u32 = if sx > tx { sx - tx } else { tx - sx };
+                                let dy: u32 = if sy > ty { sy - ty } else { ty - sy };
+                                let dist_sq = dx * dx + dy * dy;
+                                if dist_sq <= radius_sq {
+                                    let config = get_troop_config(troop.troop_type);
+                                    let new_health = troop.health + HEAL_AMOUNT;
+                                    troop.health = if new_health > config.health { config.health } else { new_health };
+                                    world.write_model(@troop);
+                                }
+                            }
+                            ti += 1;
+                        };
+                    },
+                    SpellType::Rage => {
+                        // Double damage for all troops in radius
+                        let mut ti: u32 = 1;
+                        loop {
+                            if ti > battle.deployed_troop_count {
+                                break;
+                            }
+                            let mut troop: DeployedTroop = world.read_model((battle_id, ti));
+                            if troop.is_alive {
+                                let tx: u32 = troop.x.into();
+                                let ty: u32 = troop.y.into();
+                                let sx: u32 = spell.x.into();
+                                let sy: u32 = spell.y.into();
+                                let dx: u32 = if sx > tx { sx - tx } else { tx - sx };
+                                let dy: u32 = if sy > ty { sy - ty } else { ty - sy };
+                                let dist_sq = dx * dx + dy * dy;
+                                if dist_sq <= radius_sq {
+                                    troop.damage_multiplier = 2;
+                                    world.write_model(@troop);
+                                }
+                            }
+                            ti += 1;
+                        };
+                    },
+                }
+                spell_idx += 1;
+            };
 
             // Run simulation for TICKS_PER_BATTLE ticks
             let mut tick: u32 = 0;
@@ -324,8 +493,9 @@ pub mod combat_system {
                                 let range_sq: u32 = range_px * range_px;
 
                                 if dist_sq <= range_sq {
-                                    // In range — attack
-                                    if target.current_health <= config.damage {
+                                    // In range — attack (apply damage multiplier from rage spell)
+                                    let effective_damage = config.damage * troop.damage_multiplier.into();
+                                    if target.current_health <= effective_damage {
                                         target.current_health = 0;
                                         target.is_destroyed = true;
 
@@ -340,7 +510,7 @@ pub mod combat_system {
                                         // Clear target so troop finds a new one next tick
                                         troop.target_building_id = 0;
                                     } else {
-                                        target.current_health -= config.damage;
+                                        target.current_health -= effective_damage;
                                     }
 
                                     world.write_model(@target);
