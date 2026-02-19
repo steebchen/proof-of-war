@@ -830,7 +830,7 @@ export function VillageGrid() {
     if (building) {
       setBuildings(buildings.map(b =>
         b.buildingId === buildingId
-          ? { ...b, isUpgrading: false, upgradeFinishTime: BigInt(0), level: b.level + 1 }
+          ? { ...b, isUpgrading: false, upgradeFinishTime: BigInt(0), level: b.level + 1, health: getBuildingMaxHealth(b.buildingType, b.level + 1) }
           : b
       ))
     }
@@ -1010,13 +1010,19 @@ export function VillageGrid() {
       ], noFeeDetails)
       console.log('Building repaired on-chain')
       addToast('Building repaired!')
+      // Optimistically set building to full health
+      setBuildings(buildings.map(b =>
+        b.buildingId === buildingId
+          ? { ...b, health: getBuildingMaxHealth(b.buildingType, b.level) }
+          : b
+      ))
     } catch (error) {
       console.error('Failed to repair building:', error)
       addToast('Failed to repair building', 'error')
     } finally {
       setPending(false)
     }
-  }, [account, pending])
+  }, [account, pending, buildings, setBuildings])
 
   // Repair all buildings on-chain
   const handleRepairAll = useCallback(async () => {
@@ -1033,13 +1039,18 @@ export function VillageGrid() {
       ], noFeeDetails)
       console.log('All buildings repaired on-chain')
       addToast('All buildings repaired!')
+      // Optimistically set all buildings to full health
+      setBuildings(buildings.map(b => ({
+        ...b,
+        health: getBuildingMaxHealth(b.buildingType, b.level),
+      })))
     } catch (error) {
       console.error('Failed to repair all:', error)
       addToast('Failed to repair buildings', 'error')
     } finally {
       setPending(false)
     }
-  }, [account, pending])
+  }, [account, pending, buildings, setBuildings])
 
   // Check if any buildings are damaged
   const hasDamagedBuildings = buildings.some(b => {
