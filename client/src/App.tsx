@@ -169,7 +169,6 @@ function App() {
       }
       pollForData()
     } catch (error: unknown) {
-      // Check if error is "Player already exists" - this means we should just load the player
       const errorStr = String(error)
       if (errorStr.includes('already exists') || errorStr.includes('616c726561647920657869737473')) {
         console.log('Player already exists, fetching from Torii')
@@ -327,39 +326,19 @@ function App() {
         />
       )}
 
-      {/* Dev mode: spawn/respawn button */}
-      {isConnected && (
+      {/* Dev mode: reset local state button */}
+      {isConnected && player && (
         <button
           style={styles.devSpawnBtn}
-          onClick={async () => {
-            if (isSpawning || !account) return
-            setIsSpawning(true)
-            try {
-              if (player) {
-                try {
-                  await account.execute([{
-                    contractAddress: dojoConfig.villageSystemAddress,
-                    entrypoint: 'despawn',
-                    calldata: [],
-                  }], NO_FEE_DETAILS)
-                  console.log('Despawn successful')
-                  await new Promise(r => setTimeout(r, 500))
-                } catch (e) {
-                  console.log('Despawn failed (may not exist):', e)
-                }
-              }
-              setPlayer(null)
-              setBuildings([])
-              setArmy(null)
-              hasFetchedRef.current = false
-              await handleSpawn()
-            } finally {
-              setIsSpawning(false)
-            }
+          onClick={() => {
+            setPlayer(null)
+            setBuildings([])
+            setArmy(null)
+            hasFetchedRef.current = false
+            window.location.reload()
           }}
-          disabled={isSpawning}
         >
-          {isSpawning ? 'Spawning...' : player ? 'Dev: Respawn' : 'Dev: Spawn'}
+          Dev: Reset
         </button>
       )}
     </div>

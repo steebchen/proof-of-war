@@ -3,7 +3,6 @@ use starknet::ContractAddress;
 #[starknet::interface]
 pub trait IVillage<T> {
     fn spawn(ref self: T, username: felt252);
-    fn despawn(ref self: T);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -94,65 +93,6 @@ pub mod village {
             });
         }
 
-        fn despawn(ref self: ContractState) {
-            let mut world = self.world_default();
-            let player_address = get_caller_address();
-
-            let player: Player = world.read_model(player_address);
-            assert(player.town_hall_level > 0, 'Player not spawned');
-
-            // Delete all buildings
-            let mut i: u32 = 1;
-            loop {
-                if i > player.building_count {
-                    break;
-                }
-                let empty_building = Building {
-                    owner: player_address,
-                    building_id: i,
-                    building_type: BuildingType::TownHall,
-                    level: 0,
-                    x: 0,
-                    y: 0,
-                    health: 0,
-                    is_upgrading: false,
-                    upgrade_finish_time: 0,
-                    last_collected_at: 0,
-                };
-                world.write_model(@empty_building);
-                i += 1;
-            };
-
-            // Reset player
-            let empty_player = Player {
-                address: player_address,
-                username: 0,
-                diamond: 0,
-                gas: 0,
-                trophies: 0,
-                town_hall_level: 0,
-                building_count: 0,
-                last_collected_at: 0,
-                total_builders: 0,
-                free_builders: 0,
-                max_builders: 0,
-                shield_until: 0,
-                last_attack_at: 0,
-            };
-            world.write_model(@empty_player);
-
-            // Reset army
-            let empty_army = Army {
-                owner: player_address,
-                barbarians: 0,
-                archers: 0,
-                giants: 0,
-                total_space_used: 0,
-                max_capacity: 0,
-                reserved_space: 0,
-            };
-            world.write_model(@empty_army);
-        }
     }
 
     #[generate_trait]
