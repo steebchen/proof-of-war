@@ -40,6 +40,7 @@ const cartridgeConnector = new ControllerConnector({
           { name: 'move_building', entrypoint: 'move_building' },
           { name: 'remove_building', entrypoint: 'remove_building' },
           { name: 'repair_building', entrypoint: 'repair_building' },
+          { name: 'repair_all', entrypoint: 'repair_all' },
           // Resource system
           { name: 'collect_all_resources', entrypoint: 'collect_all_resources' },
           { name: 'collect_from_building', entrypoint: 'collect_from_building' },

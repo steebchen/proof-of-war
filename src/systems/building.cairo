@@ -9,6 +9,7 @@ pub trait IBuilding<T> {
     fn move_building(ref self: T, building_id: u32, new_x: u8, new_y: u8);
     fn remove_building(ref self: T, building_id: u32);
     fn repair_building(ref self: T, building_id: u32);
+    fn repair_all(ref self: T);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -332,6 +333,62 @@ pub mod building_system {
                 cost_diamond,
                 cost_gas,
             });
+        }
+
+        fn repair_all(ref self: ContractState) {
+            let mut world = self.world_default();
+            let player_address = get_caller_address();
+
+            let mut player: Player = world.read_model(player_address);
+            assert(player.town_hall_level > 0, 'Player not spawned');
+
+            let mut total_cost_diamond: u64 = 0;
+            let mut total_cost_gas: u64 = 0;
+
+            // First pass: calculate total cost
+            let mut i: u32 = 1;
+            loop {
+                if i > player.building_count {
+                    break;
+                }
+                let building: Building = world.read_model((player_address, i));
+                if building.level > 0 && !building.is_upgrading {
+                    let max_health = get_building_health(building.building_type, building.level);
+                    if building.health < max_health {
+                        let cost = get_building_cost(building.building_type, building.level);
+                        let damage = max_health - building.health;
+                        total_cost_diamond += (cost.diamond * damage.into()) / (max_health.into() * 4);
+                        total_cost_gas += (cost.gas * damage.into()) / (max_health.into() * 4);
+                    }
+                }
+                i += 1;
+            };
+
+            assert(total_cost_diamond > 0 || total_cost_gas > 0, 'Nothing to repair');
+            assert(player.diamond >= total_cost_diamond, 'Not enough diamond');
+            assert(player.gas >= total_cost_gas, 'Not enough gas');
+
+            // Deduct total cost
+            player.diamond -= total_cost_diamond;
+            player.gas -= total_cost_gas;
+            world.write_model(@player);
+
+            // Second pass: repair all buildings
+            let mut i: u32 = 1;
+            loop {
+                if i > player.building_count {
+                    break;
+                }
+                let mut building: Building = world.read_model((player_address, i));
+                if building.level > 0 && !building.is_upgrading {
+                    let max_health = get_building_health(building.building_type, building.level);
+                    if building.health < max_health {
+                        building.health = max_health;
+                        world.write_model(@building);
+                    }
+                }
+                i += 1;
+            };
         }
     }
 

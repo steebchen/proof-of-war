@@ -1000,6 +1000,34 @@ export function VillageGrid() {
     }
   }, [account, pending])
 
+  // Repair all buildings on-chain
+  const handleRepairAll = useCallback(async () => {
+    if (!account || pending) return
+    setPending(true)
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'repair_all',
+          calldata: [],
+        },
+      ], noFeeDetails)
+      console.log('All buildings repaired on-chain')
+    } catch (error) {
+      console.error('Failed to repair all:', error)
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending])
+
+  // Check if any buildings are damaged
+  const hasDamagedBuildings = buildings.some(b => {
+    if (b.level <= 0 || b.isUpgrading) return false
+    const maxHp = getBuildingMaxHealth(b.buildingType, b.level)
+    return maxHp > 0 && b.health < maxHp
+  })
+
   // Redraw when dependencies change
   useEffect(() => {
     draw()
@@ -1622,6 +1650,23 @@ export function VillageGrid() {
         )
       })()}
 
+      {/* Repair All floating button */}
+      {hasDamagedBuildings && !selectedBuildingData && !isMoving && !isPlacing && (
+        <div style={styles.repairAllBanner}>
+          <span style={{ color: '#e74c3c', fontWeight: 'bold' }}>Buildings damaged!</span>
+          <button
+            style={{
+              ...styles.upgradeBtn,
+              backgroundColor: pending ? '#555' : '#27ae60',
+            }}
+            onClick={() => !pending && handleRepairAll()}
+            disabled={pending}
+          >
+            {pending ? 'Repairing...' : 'Repair All'}
+          </button>
+        </div>
+      )}
+
       {isMoving && (
         <div style={styles.movingIndicator}>
           <span>Moving building — click to place</span>
@@ -1730,6 +1775,20 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '12px',
     padding: '20px 28px',
     textAlign: 'center',
+  },
+  repairAllBanner: {
+    position: 'absolute',
+    top: '12px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: 'rgba(22, 33, 62, 0.95)',
+    padding: '8px 16px',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    border: '2px solid #e74c3c',
+    zIndex: 10,
   },
   movingIndicator: {
     position: 'absolute',
