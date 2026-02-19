@@ -78,6 +78,7 @@ pub mod village {
                 owner: player_address,
                 barbarians: 0,
                 archers: 0,
+                giants: 0,
                 total_space_used: 0,
                 max_capacity: 0, // No army camps yet
             };

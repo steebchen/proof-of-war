@@ -100,9 +100,11 @@ export function getBuildingMaxHealth(buildingType: BuildingType, level: number):
 export enum TroopType {
   Barbarian = 0,
   Archer = 1,
+  Giant = 2,
 }
 
 export const TROOP_INFO: Record<TroopType, { name: string; color: string; cost: number; space: number }> = {
   [TroopType.Barbarian]: { name: 'Barbarian', color: '#FFA500', cost: 25, space: 1 },
   [TroopType.Archer]: { name: 'Archer', color: '#FF69B4', cost: 50, space: 1 },
+  [TroopType.Giant]: { name: 'Giant', color: '#8B4513', cost: 150, space: 5 },
 }

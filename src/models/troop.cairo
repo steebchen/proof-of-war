@@ -3,6 +3,7 @@ pub enum TroopType {
     #[default]
     Barbarian,
     Archer,
+    Giant,
 }
 
 // Troop configuration/stats (not stored as model, just helper struct)
@@ -40,5 +41,23 @@ pub fn get_troop_config(troop_type: TroopType) -> TroopConfig {
             attack_range: 4,
             movement_speed: 2,
         },
+        TroopType::Giant => TroopConfig {
+            troop_type: TroopType::Giant,
+            health: 300,
+            damage: 12,
+            training_time: 60,
+            training_cost_gas: 150,
+            housing_space: 5,
+            attack_range: 1,
+            movement_speed: 1,
+        },
+    }
+}
+
+// Returns true if this troop type targets defenses first
+pub fn targets_defenses(troop_type: TroopType) -> bool {
+    match troop_type {
+        TroopType::Giant => true,
+        _ => false,
     }
 }

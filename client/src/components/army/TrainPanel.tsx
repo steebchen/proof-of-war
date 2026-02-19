@@ -8,7 +8,7 @@ interface TrainPanelProps {
 }
 
 export function TrainPanel({ onClose }: TrainPanelProps) {
-  const { barbarians, archers, totalSpace, maxCapacity, trainTroops } = useTroops()
+  const { barbarians, archers, giants, totalSpace, maxCapacity, trainTroops } = useTroops()
   const { canAfford } = useResources()
   const [selectedTroop, setSelectedTroop] = useState<TroopType>(TroopType.Barbarian)
   const [quantity, setQuantity] = useState(1)
@@ -50,6 +50,10 @@ export function TrainPanel({ onClose }: TrainPanelProps) {
             <div style={styles.troopCount}>
               <div style={{ ...styles.troopIcon, backgroundColor: TROOP_INFO[TroopType.Archer].color }}>A</div>
               <span>{archers}</span>
+            </div>
+            <div style={styles.troopCount}>
+              <div style={{ ...styles.troopIcon, backgroundColor: TROOP_INFO[TroopType.Giant].color }}>G</div>
+              <span>{giants}</span>
             </div>
           </div>
         </div>

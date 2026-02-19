@@ -78,7 +78,7 @@ export function Header() {
               </span>
             </div>
             {army && army.maxCapacity > 0 && (
-              <div style={styles.resource} title={`Barbarians: ${army.barbarians}, Archers: ${army.archers}`}>
+              <div style={styles.resource} title={`Barbarians: ${army.barbarians}, Archers: ${army.archers}, Giants: ${army.giants}`}>
                 <span style={{ ...styles.resourceIcon, backgroundColor: '#e74c3c' }}>A</span>
                 <span style={styles.resourceValue}>
                   {army.totalSpaceUsed}/{army.maxCapacity}

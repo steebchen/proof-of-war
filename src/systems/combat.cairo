@@ -50,7 +50,7 @@ pub mod combat_system {
     use clash_prototype::models::player::Player;
     use clash_prototype::models::building::{Building, BuildingType};
     use clash_prototype::models::army::Army;
-    use clash_prototype::models::troop::{TroopType, get_troop_config};
+    use clash_prototype::models::troop::{TroopType, get_troop_config, targets_defenses};
     use clash_prototype::models::battle::{
         Battle, BattleStatus, DeployedTroop, BattleBuilding, BattleCounter
     };
@@ -212,6 +212,10 @@ pub mod combat_system {
                     assert(army.archers > 0, 'No archers');
                     army.archers -= 1;
                 },
+                TroopType::Giant => {
+                    assert(army.giants > 0, 'No giants');
+                    army.giants -= 1;
+                },
             }
 
             // Update army
@@ -288,8 +292,17 @@ pub mod combat_system {
                         }
 
                         if troop.target_building_id == 0 {
-                            let nearest = self.find_nearest_building(@world, battle_id, battle.building_count, troop.x, troop.y);
-                            troop.target_building_id = nearest;
+                            // Giants target defenses first, then fallback to any building
+                            if targets_defenses(troop.troop_type) {
+                                let defense = self.find_nearest_defense(@world, battle_id, battle.building_count, troop.x, troop.y);
+                                if defense > 0 {
+                                    troop.target_building_id = defense;
+                                } else {
+                                    troop.target_building_id = self.find_nearest_building(@world, battle_id, battle.building_count, troop.x, troop.y);
+                                }
+                            } else {
+                                troop.target_building_id = self.find_nearest_building(@world, battle_id, battle.building_count, troop.x, troop.y);
+                            }
                         }
 
                         // Move toward target or attack
@@ -578,6 +591,52 @@ pub mod combat_system {
                     if dist < nearest_dist {
                         nearest_dist = dist;
                         nearest_id = i;
+                    }
+                }
+
+                i += 1;
+            };
+
+            nearest_id
+        }
+
+        fn find_nearest_defense(
+            self: @ContractState,
+            world: @dojo::world::WorldStorage,
+            battle_id: u32,
+            building_count: u32,
+            troop_x: u16,
+            troop_y: u16
+        ) -> u32 {
+            let mut nearest_id: u32 = 0;
+            let mut nearest_dist: u32 = 0xFFFFFFFF;
+
+            let mut i: u32 = 1;
+            loop {
+                if i > building_count {
+                    break;
+                }
+
+                let building: BattleBuilding = world.read_model((battle_id, i));
+
+                if !building.is_destroyed {
+                    let is_defense = building.building_type == BuildingType::Cannon
+                        || building.building_type == BuildingType::ArcherTower;
+
+                    if is_defense {
+                        let bx: u32 = building.x.into() * 10;
+                        let by: u32 = building.y.into() * 10;
+                        let tx: u32 = troop_x.into();
+                        let ty: u32 = troop_y.into();
+
+                        let dx: u32 = if tx > bx { tx - bx } else { bx - tx };
+                        let dy: u32 = if ty > by { ty - by } else { by - ty };
+                        let dist = dx * dx + dy * dy;
+
+                        if dist < nearest_dist {
+                            nearest_dist = dist;
+                            nearest_id = i;
+                        }
                     }
                 }
 

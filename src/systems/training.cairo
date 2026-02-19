@@ -127,6 +127,9 @@ pub mod training_system {
                 TroopType::Archer => {
                     army.archers += queue.quantity.into();
                 },
+                TroopType::Giant => {
+                    army.giants += queue.quantity.into();
+                },
             }
 
             // Update space used

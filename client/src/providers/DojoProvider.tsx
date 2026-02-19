@@ -37,6 +37,7 @@ export interface Army {
   owner: string
   barbarians: number
   archers: number
+  giants: number
   totalSpaceUsed: number
   maxCapacity: number
 }
@@ -220,6 +221,7 @@ function transformArmy(data: ClashSchemaType['clash']['Army']): Army {
     owner: data.owner,
     barbarians: parseInt(data.barbarians || '0', 10),
     archers: parseInt(data.archers || '0', 10),
+    giants: parseInt(data.giants || '0', 10),
     totalSpaceUsed: parseInt(data.total_space_used || '0', 10),
     maxCapacity: parseInt(data.max_capacity || '0', 10),
   }

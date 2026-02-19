@@ -8,6 +8,7 @@ pub struct Army {
     pub owner: ContractAddress,
     pub barbarians: u16,
     pub archers: u16,
+    pub giants: u16,
     pub total_space_used: u16,
     pub max_capacity: u16,
 }

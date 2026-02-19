@@ -2,7 +2,7 @@ import { TroopType, TROOP_INFO } from '../../config/dojoConfig'
 import { useTroops } from '../../hooks/useTroops'
 
 export function TroopsList() {
-  const { barbarians, archers, totalSpace, maxCapacity } = useTroops()
+  const { barbarians, archers, giants, totalSpace, maxCapacity } = useTroops()
 
   return (
     <div style={styles.container}>
@@ -36,6 +36,18 @@ export function TroopsList() {
             A
           </div>
           <span>{archers}</span>
+        </div>
+
+        <div style={styles.troop}>
+          <div
+            style={{
+              ...styles.icon,
+              backgroundColor: TROOP_INFO[TroopType.Giant].color,
+            }}
+          >
+            G
+          </div>
+          <span>{giants}</span>
         </div>
       </div>
     </div>

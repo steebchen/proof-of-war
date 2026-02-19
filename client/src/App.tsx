@@ -134,6 +134,7 @@ function App() {
         owner: address,
         barbarians: 0,
         archers: 0,
+        giants: 0,
         totalSpaceUsed: 0,
         maxCapacity: 0,
       })

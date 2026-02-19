@@ -22,6 +22,7 @@ import {
 const TROOP_CONFIG: Record<number, { health: number; damage: number; attackRange: number; movementSpeed: number }> = {
   [TroopType.Barbarian]: { health: 45, damage: 8, attackRange: 1, movementSpeed: 2 },
   [TroopType.Archer]: { health: 20, damage: 7, attackRange: 4, movementSpeed: 2 },
+  [TroopType.Giant]: { health: 300, damage: 12, attackRange: 1, movementSpeed: 1 },
 }
 
 // Defense stats matching Cairo config
@@ -235,7 +236,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { address } = useAccount()
   const { currentBattle, startAttack, deployTroop, resolveBattle, cancelAttack } = useAttack()
-  const { barbarians, archers } = useTroops()
+  const { barbarians, archers, giants } = useTroops()
   const { fetchDefenderBuildings, fetchAllPlayers } = useDojo()
   const [selectedTroop, setSelectedTroop] = useState<TroopType | null>(null)
   const [targetAddress, setTargetAddress] = useState('')
@@ -283,8 +284,10 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   // Track remaining troops locally (decrements on deploy)
   const [localBarbarians, setLocalBarbarians] = useState(0)
   const [localArchers, setLocalArchers] = useState(0)
+  const [localGiants, setLocalGiants] = useState(0)
   useEffect(() => { setLocalBarbarians(barbarians) }, [barbarians])
   useEffect(() => { setLocalArchers(archers) }, [archers])
+  useEffect(() => { setLocalGiants(giants) }, [giants])
 
   // Load sprites
   useEffect(() => {
@@ -554,6 +557,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     // Check troop availability
     if (selectedTroop === TroopType.Barbarian && localBarbarians <= 0) return
     if (selectedTroop === TroopType.Archer && localArchers <= 0) return
+    if (selectedTroop === TroopType.Giant && localGiants <= 0) return
 
     // Scale grid coords to pixel coords for contract (grid_x * 10, grid_y * 10)
     const pixelX = gx * 10
@@ -569,10 +573,12 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     // Decrement local count
     if (selectedTroop === TroopType.Barbarian) {
       setLocalBarbarians(prev => prev - 1)
-    } else {
+    } else if (selectedTroop === TroopType.Archer) {
       setLocalArchers(prev => prev - 1)
+    } else if (selectedTroop === TroopType.Giant) {
+      setLocalGiants(prev => prev - 1)
     }
-  }, [phase, currentBattle, selectedTroop, localBarbarians, localArchers, deployTroop, deployedTroops, clientToLogical, isDeployZone])
+  }, [phase, currentBattle, selectedTroop, localBarbarians, localArchers, localGiants, deployTroop, deployedTroops, clientToLogical, isDeployZone])
 
   // Launch attack (resolve)
   const handleLaunchAttack = async () => {
@@ -852,7 +858,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
                 <div style={styles.troopSelector}>
                   <span>Select Troop:</span>
                   {Object.entries(TROOP_INFO).map(([type, info]) => {
-                    const count = Number(type) === TroopType.Barbarian ? localBarbarians : localArchers
+                    const count = Number(type) === TroopType.Barbarian ? localBarbarians
+                      : Number(type) === TroopType.Giant ? localGiants
+                      : localArchers
                     return (
                       <button
                         key={type}

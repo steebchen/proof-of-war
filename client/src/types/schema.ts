@@ -32,6 +32,7 @@ export type ClashSchemaType = {
       owner: string
       barbarians: string // u16 as string
       archers: string // u16 as string
+      giants: string // u16 as string
       total_space_used: string // u16 as string
       max_capacity: string // u16 as string
     }

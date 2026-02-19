@@ -11,6 +11,7 @@ export function useTroops() {
 
   const barbarians = army?.barbarians ?? 0
   const archers = army?.archers ?? 0
+  const giants = army?.giants ?? 0
   const totalSpace = army?.totalSpaceUsed ?? 0
   const maxCapacity = army?.maxCapacity ?? 0
 
@@ -45,8 +46,10 @@ export function useTroops() {
     const newArmy = { ...army }
     if (troopType === TroopType.Barbarian) {
       newArmy.barbarians += quantity
-    } else {
+    } else if (troopType === TroopType.Archer) {
       newArmy.archers += quantity
+    } else if (troopType === TroopType.Giant) {
+      newArmy.giants += quantity
     }
     newArmy.totalSpaceUsed += totalSpace
     setArmy(newArmy)
@@ -89,12 +92,14 @@ export function useTroops() {
 
   const getTroopCount = useCallback((troopType: TroopType): number => {
     if (troopType === TroopType.Barbarian) return barbarians
+    if (troopType === TroopType.Giant) return giants
     return archers
-  }, [barbarians, archers])
+  }, [barbarians, archers, giants])
 
   return {
     barbarians,
     archers,
+    giants,
     totalSpace,
     maxCapacity,
     trainTroops,
