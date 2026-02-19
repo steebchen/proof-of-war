@@ -185,17 +185,50 @@ export function drawIsoBuilding(
     }
   }
 
-  // Level text on top face
+  // Level badge (top-right of building)
   ctx.globalAlpha = prevAlpha
-  ctx.fillStyle = '#fff'
-  ctx.font = 'bold 10px sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const topCenter = {
-    x: (topR.x + rightR.x + bottomR.x + leftR.x) / 4,
-    y: (topR.y + rightR.y + bottomR.y + leftR.y) / 4,
+  if (building.level > 0) {
+    const badgeX = rightR.x - 2
+    const badgeY = rightR.y - 2
+    const levelText = `${building.level}`
+
+    // Level-based glow for higher levels
+    if (building.level >= 3) {
+      ctx.shadowColor = '#FFD700'
+      ctx.shadowBlur = 6
+    } else if (building.level >= 2) {
+      ctx.shadowColor = '#87CEEB'
+      ctx.shadowBlur = 4
+    }
+
+    // Badge background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'
+    const badgeW = 14
+    const badgeH = 12
+    const badgeRadius = 3
+    ctx.beginPath()
+    ctx.moveTo(badgeX - badgeW / 2 + badgeRadius, badgeY - badgeH / 2)
+    ctx.lineTo(badgeX + badgeW / 2 - badgeRadius, badgeY - badgeH / 2)
+    ctx.quadraticCurveTo(badgeX + badgeW / 2, badgeY - badgeH / 2, badgeX + badgeW / 2, badgeY - badgeH / 2 + badgeRadius)
+    ctx.lineTo(badgeX + badgeW / 2, badgeY + badgeH / 2 - badgeRadius)
+    ctx.quadraticCurveTo(badgeX + badgeW / 2, badgeY + badgeH / 2, badgeX + badgeW / 2 - badgeRadius, badgeY + badgeH / 2)
+    ctx.lineTo(badgeX - badgeW / 2 + badgeRadius, badgeY + badgeH / 2)
+    ctx.quadraticCurveTo(badgeX - badgeW / 2, badgeY + badgeH / 2, badgeX - badgeW / 2, badgeY + badgeH / 2 - badgeRadius)
+    ctx.lineTo(badgeX - badgeW / 2, badgeY - badgeH / 2 + badgeRadius)
+    ctx.quadraticCurveTo(badgeX - badgeW / 2, badgeY - badgeH / 2, badgeX - badgeW / 2 + badgeRadius, badgeY - badgeH / 2)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+
+    // Level number
+    ctx.fillStyle = building.level >= 3 ? '#FFD700' : building.level >= 2 ? '#87CEEB' : '#fff'
+    ctx.font = 'bold 9px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(levelText, badgeX, badgeY)
   }
-  ctx.fillText(`L${building.level}`, topCenter.x, topCenter.y)
 
   if (opacity !== undefined) {
     ctx.globalAlpha = prevAlpha
