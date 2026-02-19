@@ -4,7 +4,7 @@ import { useResources } from '../../hooks/useResources'
 import { useDojo, TrainingQueue } from '../../providers/DojoProvider'
 import { getMaxBuildingCount as getMaxBuildingCountClient } from '../../utils/buildingLimits'
 import { useAccount } from '@starknet-react/core'
-import { dojoConfig, BuildingType, TroopType, BUILDING_INFO, BUILDING_SPRITES, TROOP_INFO, NO_FEE_DETAILS, BUILD_TIMES } from '../../config/dojoConfig'
+import { dojoConfig, BuildingType, TroopType, BUILDING_INFO, BUILDING_SPRITES, TROOP_INFO, NO_FEE_DETAILS, BUILD_TIMES, getBuildingMaxHealth } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   HALF_W,
@@ -418,6 +418,31 @@ export function VillageGrid() {
           drawLabelWithBg(ctx, 'Ready!', topCenter.x, topCenter.y + 6, '#27ae60')
         }
       }
+    }
+
+    // Draw health bars on damaged buildings
+    for (const building of sorted) {
+      if (building.level <= 0 || building.isUpgrading) continue
+      const maxHp = getBuildingMaxHealth(building.buildingType, building.level)
+      if (maxHp <= 0 || building.health >= maxHp) continue
+
+      const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
+      const bh = BUILDING_HEIGHTS[building.buildingType] ?? 14
+      const centerX = building.x + size.width / 2
+      const centerY = building.y + size.height / 2
+      const center = gridToScreen(centerX, centerY)
+      const barY = center.y - bh - 8
+      const barW = 24
+      const barH = 4
+      const hpRatio = building.health / maxHp
+
+      // Background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+      ctx.fillRect(center.x - barW / 2 - 1, barY - 1, barW + 2, barH + 2)
+
+      // Health bar (red/yellow/green based on %)
+      ctx.fillStyle = hpRatio > 0.5 ? '#f39c12' : '#e74c3c'
+      ctx.fillRect(center.x - barW / 2, barY, barW * hpRatio, barH)
     }
 
     // Worker training indicator on Command Center (Town Hall)
@@ -954,6 +979,27 @@ export function VillageGrid() {
     }
   }, [account, pending])
 
+  // Repair building on-chain
+  const handleRepairBuilding = useCallback(async (buildingId: number) => {
+    if (!account || pending) return
+    setPending(true)
+
+    try {
+      await account.execute([
+        {
+          contractAddress: dojoConfig.buildingSystemAddress,
+          entrypoint: 'repair_building',
+          calldata: [buildingId],
+        },
+      ], noFeeDetails)
+      console.log('Building repaired on-chain')
+    } catch (error) {
+      console.error('Failed to repair building:', error)
+    } finally {
+      setPending(false)
+    }
+  }, [account, pending])
+
   // Redraw when dependencies change
   useEffect(() => {
     draw()
@@ -1198,7 +1244,30 @@ export function VillageGrid() {
             {BUILDING_NAMES[selectedBuildingData.buildingType] || 'Unknown'}
           </h4>
           <p style={styles.stat}>Level: {selectedBuildingData.level}/{MAX_LEVELS[selectedBuildingData.buildingType] ?? 1}</p>
-          <p style={styles.stat}>Health: {selectedBuildingData.health}</p>
+          {(() => {
+            const maxHp = getBuildingMaxHealth(selectedBuildingData.buildingType, selectedBuildingData.level)
+            const hp = selectedBuildingData.health
+            const hpPercent = maxHp > 0 ? (hp / maxHp) * 100 : 100
+            const isDamaged = hp < maxHp && maxHp > 0
+            return (
+              <>
+                <p style={{ ...styles.stat, color: isDamaged ? '#e74c3c' : undefined }}>
+                  Health: {hp}/{maxHp}
+                </p>
+                {isDamaged && (
+                  <div style={{ width: '100%', marginBottom: '4px' }}>
+                    <div style={{ ...styles.progressBarBg, height: '6px' }}>
+                      <div style={{
+                        ...styles.progressBarFill,
+                        width: `${hpPercent}%`,
+                        backgroundColor: hpPercent > 50 ? '#f39c12' : '#e74c3c',
+                      }} />
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
           {player && (
             <p style={{ ...styles.stat, color: (player.freeBuilders > 0) ? '#4CAF50' : '#FF5722' }}>
               Workers: {player.freeBuilders}/{player.totalBuilders}
@@ -1464,6 +1533,30 @@ export function VillageGrid() {
                 </div>
               )
             })()}
+
+          {/* Repair button - shown when building is damaged */}
+          {selectedBuildingData.level > 0 && !selectedBuildingData.isUpgrading && (() => {
+            const maxHp = getBuildingMaxHealth(selectedBuildingData.buildingType, selectedBuildingData.level)
+            const isDamaged = selectedBuildingData.health < maxHp && maxHp > 0
+            if (!isDamaged) return null
+            const info = BUILDING_INFO[selectedBuildingData.buildingType as BuildingType]
+            const damage = maxHp - selectedBuildingData.health
+            const repairDiamond = Math.floor((info.cost.diamond * selectedBuildingData.level * damage) / (maxHp * 4))
+            const repairGas = Math.floor((info.cost.gas * selectedBuildingData.level * damage) / (maxHp * 4))
+            return (
+              <button
+                style={{
+                  ...styles.upgradeBtn,
+                  backgroundColor: pending ? '#555' : '#27ae60',
+                  width: '100%',
+                }}
+                onClick={() => !pending && handleRepairBuilding(selectedBuildingData.buildingId)}
+                disabled={pending}
+              >
+                {pending ? 'Repairing...' : `Repair${repairDiamond > 0 ? ` ${repairDiamond}d` : ''}${repairGas > 0 ? ` ${repairGas}g` : ''}`}
+              </button>
+            )
+          })()}
 
           {/* Move & Remove buttons - only for fully built, non-upgrading buildings (except TownHall) */}
           {selectedBuildingData.level > 0 && !selectedBuildingData.isUpgrading &&

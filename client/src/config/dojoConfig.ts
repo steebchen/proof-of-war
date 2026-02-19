@@ -77,6 +77,25 @@ export const BUILD_TIMES: Record<BuildingType, number> = {
   [BuildingType.Wall]: 1,
 }
 
+// Building health by type/level (must match Cairo config)
+export function getBuildingMaxHealth(buildingType: BuildingType, level: number): number {
+  if (level <= 0) return 0
+  const baseHealth: Record<BuildingType, number> = {
+    [BuildingType.TownHall]: 1500,
+    [BuildingType.DiamondMine]: 400,
+    [BuildingType.GasCollector]: 400,
+    [BuildingType.DiamondStorage]: 500,
+    [BuildingType.GasStorage]: 500,
+    [BuildingType.Barracks]: 350,
+    [BuildingType.ArmyCamp]: 300,
+    [BuildingType.Cannon]: 420,
+    [BuildingType.ArcherTower]: 380,
+    [BuildingType.Wall]: 300,
+  }
+  const base = baseHealth[buildingType] ?? 400
+  return base + Math.floor(base * (level - 1) / 4)
+}
+
 // Troop types
 export enum TroopType {
   Barbarian = 0,

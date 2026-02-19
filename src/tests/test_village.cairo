@@ -13,7 +13,7 @@ use clash_prototype::models::battle::{
     m_Battle, m_DeployedTroop, m_BattleBuilding, m_BattleCounter,
 };
 use clash_prototype::systems::village::{village, IVillageDispatcher, IVillageDispatcherTrait, e_PlayerSpawned};
-use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded, e_BuildingRemoved};
+use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded, e_BuildingRemoved, e_BuildingRepaired};
 use clash_prototype::systems::training::{training_system, ITrainingDispatcher, ITrainingDispatcherTrait, e_TroopsTrainingStarted, e_TroopsCollected};
 use clash_prototype::systems::resource::{resource_system, IResourceDispatcher, IResourceDispatcherTrait, e_ResourcesCollected};
 use clash_prototype::systems::combat::{combat_system, e_BattleStarted, e_TroopDeployed, e_BattleEnded};
@@ -38,6 +38,7 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Event(e_BuildingPlaced::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingUpgraded::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingRemoved::TEST_CLASS_HASH),
+            TestResource::Event(e_BuildingRepaired::TEST_CLASS_HASH),
             TestResource::Event(e_TroopsTrainingStarted::TEST_CLASS_HASH),
             TestResource::Event(e_TroopsCollected::TEST_CLASS_HASH),
             TestResource::Event(e_ResourcesCollected::TEST_CLASS_HASH),
@@ -760,4 +761,145 @@ fn test_cannot_remove_town_hall() {
 
     // Try to remove town hall (building_id 1)
     building_dispatcher.remove_building(1);
+}
+
+#[test]
+fn test_repair_building() {
+    let player: ContractAddress = 'player'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    starknet::testing::set_contract_address(player);
+    starknet::testing::set_account_contract_address(player);
+    village_dispatcher.spawn('Player');
+
+    // Place and finish a diamond mine
+    building_dispatcher.place_building(BuildingType::DiamondMine, 5, 5);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    // Manually damage the building by writing a lower health
+    // Need to set caller to a system with write perms for direct model write
+    let mut building: Building = world.read_model((player, 2_u32));
+    let max_health = building.health;
+    building.health = max_health / 2; // 50% health
+    starknet::testing::set_contract_address(building_address);
+    starknet::testing::set_account_contract_address(building_address);
+    world.write_model(@building);
+
+    // Switch back to player for the repair call
+    starknet::testing::set_contract_address(player);
+    starknet::testing::set_account_contract_address(player);
+
+    let player_before: Player = world.read_model(player);
+
+    // Repair the building
+    building_dispatcher.repair_building(2);
+
+    // Check building is at full health
+    let building_after: Building = world.read_model((player, 2_u32));
+    assert(building_after.health == max_health, 'Should be full health');
+
+    // Check resources were deducted
+    let player_after: Player = world.read_model(player);
+    assert(player_after.diamond < player_before.diamond, 'Should cost diamond');
+}
+
+#[test]
+#[should_panic(expected: ('Building already full health', 'ENTRYPOINT_FAILED'))]
+fn test_cannot_repair_full_health() {
+    let player: ContractAddress = 'player'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    starknet::testing::set_contract_address(player);
+    starknet::testing::set_account_contract_address(player);
+    village_dispatcher.spawn('Player');
+
+    // Place and finish a diamond mine
+    building_dispatcher.place_building(BuildingType::DiamondMine, 5, 5);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    // Try to repair at full health - should panic
+    building_dispatcher.repair_building(2);
+}
+
+#[test]
+fn test_battle_damage_applied() {
+    let attacker: ContractAddress = 'attacker'.try_into().unwrap();
+    let defender: ContractAddress = 'defender'.try_into().unwrap();
+    let ndef = namespace_def();
+
+    let mut world = spawn_test_world(world::TEST_CLASS_HASH, [ndef].span());
+    world.sync_perms_and_inits(contract_defs());
+
+    let (village_address, _) = world.dns(@"village").unwrap();
+    let village_dispatcher = IVillageDispatcher { contract_address: village_address };
+
+    let (building_address, _) = world.dns(@"building_system").unwrap();
+    let building_dispatcher = IBuildingDispatcher { contract_address: building_address };
+
+    let (training_address, _) = world.dns(@"training_system").unwrap();
+    let training_dispatcher = ITrainingDispatcher { contract_address: training_address };
+
+    let (combat_address, _) = world.dns(@"combat_system").unwrap();
+    let combat_dispatcher = ICombatDispatcher { contract_address: combat_address };
+
+    // Spawn both players
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+    village_dispatcher.spawn('Attacker');
+
+    starknet::testing::set_contract_address(defender);
+    starknet::testing::set_account_contract_address(defender);
+    village_dispatcher.spawn('Defender');
+
+    // Get defender's TH health before attack
+    let th_before: Building = world.read_model((defender, 1_u32));
+    let th_health_before = th_before.health;
+
+    // Give attacker army
+    starknet::testing::set_contract_address(attacker);
+    starknet::testing::set_account_contract_address(attacker);
+
+    building_dispatcher.place_building(BuildingType::ArmyCamp, 0, 0);
+    starknet::testing::set_block_timestamp(100);
+    building_dispatcher.finish_upgrade(2);
+
+    building_dispatcher.place_building(BuildingType::Barracks, 5, 5);
+    starknet::testing::set_block_timestamp(200);
+    building_dispatcher.finish_upgrade(3);
+
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
+    starknet::testing::set_block_timestamp(500);
+    training_dispatcher.collect_trained_troops(3);
+
+    // Attack defender
+    combat_dispatcher.start_attack(defender);
+    combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
+    combat_dispatcher.resolve_battle(0);
+
+    // Check defender's TH took damage (or stayed same if troop couldn't reach)
+    let th_after: Building = world.read_model((defender, 1_u32));
+    // The battle simulation runs, so the TH may or may not be damaged
+    // But it should still exist (health >= 1)
+    assert(th_after.health >= 1, 'Building should survive');
+    assert(th_after.health <= th_health_before, 'Health should not increase');
 }

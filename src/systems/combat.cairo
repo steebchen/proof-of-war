@@ -56,7 +56,7 @@ pub mod combat_system {
     };
     use clash_prototype::utils::config::{
         BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE, LOOT_PROTECTION,
-        TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats
+        TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats, get_building_health
     };
 
     #[abi(embed_v0)]
@@ -497,6 +497,31 @@ pub mod combat_system {
                 }
                 defender_player.trophies += loss;
             }
+
+            // Apply battle damage to defender's real buildings
+            let mut b_idx: u32 = 1;
+            loop {
+                if b_idx > battle.building_count {
+                    break;
+                }
+                let battle_building: BattleBuilding = world.read_model((battle_id, b_idx));
+                // Find the real building using the battle_building's building_id
+                let mut real_building: Building = world.read_model((battle.defender, battle_building.building_id));
+                if real_building.level > 0 {
+                    let max_health = get_building_health(real_building.building_type, real_building.level);
+                    if battle_building.is_destroyed {
+                        // Destroyed buildings go to 1 HP (not 0, so they still exist but need repair)
+                        real_building.health = 1;
+                    } else if battle_building.current_health < battle_building.max_health {
+                        // Apply proportional damage
+                        let damage_ratio_num = battle_building.max_health - battle_building.current_health;
+                        let new_health = max_health - (max_health * damage_ratio_num / battle_building.max_health);
+                        real_building.health = if new_health < 1 { 1 } else { new_health };
+                    }
+                    world.write_model(@real_building);
+                }
+                b_idx += 1;
+            };
 
             // Grant shield to defender after being attacked
             let current_time = get_block_timestamp();

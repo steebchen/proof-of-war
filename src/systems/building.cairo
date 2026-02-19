@@ -8,6 +8,7 @@ pub trait IBuilding<T> {
     fn finish_upgrade(ref self: T, building_id: u32);
     fn move_building(ref self: T, building_id: u32, new_x: u8, new_y: u8);
     fn remove_building(ref self: T, building_id: u32);
+    fn repair_building(ref self: T, building_id: u32);
 }
 
 #[derive(Copy, Drop, Serde)]
@@ -41,9 +42,19 @@ pub struct BuildingRemoved {
     pub refund_gas: u64,
 }
 
+#[derive(Copy, Drop, Serde)]
+#[dojo::event]
+pub struct BuildingRepaired {
+    #[key]
+    pub owner: ContractAddress,
+    pub building_id: u32,
+    pub cost_diamond: u64,
+    pub cost_gas: u64,
+}
+
 #[dojo::contract]
 pub mod building_system {
-    use super::{IBuilding, BuildingPlaced, BuildingUpgraded, BuildingRemoved};
+    use super::{IBuilding, BuildingPlaced, BuildingUpgraded, BuildingRemoved, BuildingRepaired};
     use starknet::{ContractAddress, get_caller_address, get_block_timestamp};
     use dojo::model::ModelStorage;
     use dojo::event::EventStorage;
@@ -279,6 +290,47 @@ pub mod building_system {
                 building_type: removed_type,
                 refund_diamond,
                 refund_gas,
+            });
+        }
+
+        fn repair_building(ref self: ContractState, building_id: u32) {
+            let mut world = self.world_default();
+            let player_address = get_caller_address();
+
+            // Get player and building
+            let mut player: Player = world.read_model(player_address);
+            let mut building: Building = world.read_model((player_address, building_id));
+
+            assert(building.level > 0, 'Building not found');
+            assert(!building.is_upgrading, 'Cannot repair while upgrading');
+
+            let max_health = get_building_health(building.building_type, building.level);
+            assert(building.health < max_health, 'Building already full health');
+
+            // Repair cost = 25% of building cost scaled by damage ratio
+            let cost = get_building_cost(building.building_type, building.level);
+            let damage = max_health - building.health;
+            let cost_diamond = (cost.diamond * damage.into()) / (max_health.into() * 4);
+            let cost_gas = (cost.gas * damage.into()) / (max_health.into() * 4);
+
+            assert(player.diamond >= cost_diamond, 'Not enough diamond');
+            assert(player.gas >= cost_gas, 'Not enough gas');
+
+            // Deduct resources
+            player.diamond -= cost_diamond;
+            player.gas -= cost_gas;
+            world.write_model(@player);
+
+            // Repair to full health
+            building.health = max_health;
+            world.write_model(@building);
+
+            // Emit event
+            world.emit_event(@BuildingRepaired {
+                owner: player_address,
+                building_id,
+                cost_diamond,
+                cost_gas,
             });
         }
     }
