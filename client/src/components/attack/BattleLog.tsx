@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAccount } from '@starknet-react/core'
 import { useDojo, BattleRecord } from '../../providers/DojoProvider'
+import { getStarCount } from './BattleResult'
 
 interface BattleLogProps {
   onClose: () => void
@@ -21,12 +22,7 @@ export function BattleLog({ onClose }: BattleLogProps) {
     })
   }, [fetchBattleHistory, address])
 
-  const getStars = (destruction: number) => {
-    if (destruction >= 100) return 3
-    if (destruction >= 50) return 2
-    if (destruction >= 25) return 1
-    return 0
-  }
+  const getStars = getStarCount
 
   return (
     <div style={styles.overlay}>
@@ -92,8 +88,8 @@ export function BattleLog({ onClose }: BattleLogProps) {
                     <div style={styles.statsRow}>
                       <span style={styles.starsDisplay}>
                         {[1, 2, 3].map(s => (
-                          <span key={s} style={{ color: s <= stars ? '#FFD700' : '#333', fontSize: '18px' }}>
-                            *
+                          <span key={s} style={{ color: s <= stars ? '#FFD700' : '#333', fontSize: '16px' }}>
+                            ★
                           </span>
                         ))}
                       </span>
