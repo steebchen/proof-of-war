@@ -9,6 +9,7 @@ import { AttackScreen } from './components/attack/AttackScreen'
 import { BattleResult } from './components/attack/BattleResult'
 import { Leaderboard } from './components/layout/Leaderboard'
 import { BattleLog } from './components/attack/BattleLog'
+import { PlayerStats } from './components/layout/PlayerStats'
 import { useAttack } from './hooks/useAttack'
 import { dojoConfig, NO_FEE_DETAILS } from './config/dojoConfig'
 import { ToastProvider, useToast } from './components/ui/Toast'
@@ -28,6 +29,7 @@ function App() {
   const [showAttack, setShowAttack] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [showBattleLog, setShowBattleLog] = useState(false)
+  const [showStats, setShowStats] = useState(false)
   const [isSpawning, setIsSpawning] = useState(false)
   const [spawnUsername, setSpawnUsername] = useState('')
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false)
@@ -272,6 +274,7 @@ function App() {
           onOpenAttack={() => setShowAttack(true)}
           onOpenLeaderboard={() => setShowLeaderboard(true)}
           onOpenBattleLog={() => setShowBattleLog(true)}
+          onOpenStats={() => setShowStats(true)}
         />
       )}
 
@@ -280,6 +283,8 @@ function App() {
       {showLeaderboard && <Leaderboard onClose={() => setShowLeaderboard(false)} />}
 
       {showBattleLog && <BattleLog onClose={() => setShowBattleLog(false)} />}
+
+      {showStats && <PlayerStats onClose={() => setShowStats(false)} />}
 
       {showAttack && (
         <AttackScreen

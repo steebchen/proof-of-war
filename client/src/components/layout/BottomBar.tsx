@@ -17,9 +17,10 @@ interface BottomBarProps {
   onOpenAttack: () => void
   onOpenLeaderboard: () => void
   onOpenBattleLog: () => void
+  onOpenStats: () => void
 }
 
-export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenBattleLog }: BottomBarProps) {
+export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenBattleLog, onOpenStats }: BottomBarProps) {
   const { isPlacing, selectedBuildingType, startPlacing, cancelPlacing } = useBuildings()
   const { diamond, gas, canAfford } = useResources()
   const { player, buildings } = useDojo()
@@ -134,6 +135,9 @@ export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenB
           </button>
           <button style={{ ...styles.actionBtn, backgroundColor: '#9b59b6' }} onClick={onOpenBattleLog}>
             Log
+          </button>
+          <button style={{ ...styles.actionBtn, backgroundColor: '#3498db' }} onClick={onOpenStats}>
+            Stats
           </button>
         </div>
       </div>
