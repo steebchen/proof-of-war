@@ -1,12 +1,24 @@
 import { useDojo } from '../providers/DojoProvider'
-import { useCallback, useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
 import { useAccount } from '@starknet-react/core'
 import { dojoConfig, BuildingType, NO_FEE_DETAILS } from '../config/dojoConfig'
 
 // Must match Cairo RESOURCE_PRODUCTION_PER_MIN
 const RESOURCE_PRODUCTION_PER_MIN = 10
 
+// Must match Cairo get_storage_capacity base values
+const STORAGE_BASE: Partial<Record<BuildingType, number>> = {
+  [BuildingType.TownHall]: 2500,
+  [BuildingType.DiamondStorage]: 1500,
+  [BuildingType.GasStorage]: 1500,
+}
+
 export interface CollectionResult {
+  diamond: number
+  gas: number
+}
+
+export interface StorageCapacity {
   diamond: number
   gas: number
 }
@@ -21,6 +33,29 @@ export function useResources() {
 
   const diamond = player?.diamond ?? BigInt(0)
   const gas = player?.gas ?? BigInt(0)
+
+  // Calculate storage capacity mirroring Cairo logic
+  const capacity = useMemo((): StorageCapacity => {
+    let diamondCap = 0
+    let gasCap = 0
+
+    for (const b of buildings) {
+      if (b.level === 0) continue
+      const base = STORAGE_BASE[b.buildingType as BuildingType]
+      if (!base) continue
+      const cap = base * b.level
+      if (b.buildingType === BuildingType.TownHall) {
+        diamondCap += cap
+        gasCap += cap
+      } else if (b.buildingType === BuildingType.DiamondStorage) {
+        diamondCap += cap
+      } else if (b.buildingType === BuildingType.GasStorage) {
+        gasCap += cap
+      }
+    }
+
+    return { diamond: diamondCap, gas: gasCap }
+  }, [buildings])
 
   // Estimate pending resources based on building levels and time elapsed
   const estimatePending = useCallback((): CollectionResult => {
@@ -44,8 +79,18 @@ export function useResources() {
       }
     }
 
+    // Cap pending at remaining storage space
+    const currentDiamond = Number(diamond)
+    const currentGas = Number(gas)
+    if (capacity.diamond > 0 && currentDiamond + pendingDiamond > capacity.diamond) {
+      pendingDiamond = Math.max(0, capacity.diamond - currentDiamond)
+    }
+    if (capacity.gas > 0 && currentGas + pendingGas > capacity.gas) {
+      pendingGas = Math.max(0, capacity.gas - currentGas)
+    }
+
     return { diamond: pendingDiamond, gas: pendingGas }
-  }, [buildings])
+  }, [buildings, diamond, gas, capacity])
 
   const [pending, setPending] = useState<CollectionResult>({ diamond: 0, gas: 0 })
 
@@ -99,6 +144,7 @@ export function useResources() {
   return {
     diamond,
     gas,
+    capacity,
     collectResources,
     canAfford,
     canCollect,

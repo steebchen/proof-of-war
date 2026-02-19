@@ -9,7 +9,7 @@ export function Header() {
   const { address, isConnected } = useAccount()
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
-  const { diamond, gas, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
+  const { diamond, gas, capacity, collectResources, canCollect, collecting, pending, lastCollection } = useResources()
   const { player, army, isConnected: toriiConnected, fetchBattleHistory } = useDojo()
   const [attackNotification, setAttackNotification] = useState<BattleRecord | null>(null)
   const checkedRef = useRef(false)
@@ -32,11 +32,19 @@ export function Header() {
     })
   }, [address, player, fetchBattleHistory])
 
-  const formatNumber = (n: bigint): string => {
-    const num = Number(n)
+  const formatNumber = (n: bigint | number): string => {
+    const num = typeof n === 'bigint' ? Number(n) : n
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
     return num.toString()
+  }
+
+  const getResourceColor = (current: bigint, max: number): string | undefined => {
+    if (max <= 0) return undefined
+    const ratio = Number(current) / max
+    if (ratio >= 1) return '#e74c3c'
+    if (ratio > 0.8) return '#f39c12'
+    return undefined
   }
 
   // Get the Cartridge Controller connector
@@ -56,8 +64,9 @@ export function Header() {
           <>
             <div style={styles.resource}>
               <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.diamond }}>D</span>
-              <span style={styles.resourceValue}>
+              <span style={{ ...styles.resourceValue, color: getResourceColor(diamond, capacity.diamond) }}>
                 {formatNumber(diamond)}
+                {capacity.diamond > 0 && <span style={styles.capacityText}>/{formatNumber(capacity.diamond)}</span>}
                 {pending.diamond > 0 && (
                   <span style={styles.pendingResource}>+{pending.diamond}</span>
                 )}
@@ -65,8 +74,9 @@ export function Header() {
             </div>
             <div style={styles.resource}>
               <span style={{ ...styles.resourceIcon, backgroundColor: COLORS.gas }}>G</span>
-              <span style={styles.resourceValue}>
+              <span style={{ ...styles.resourceValue, color: getResourceColor(gas, capacity.gas) }}>
                 {formatNumber(gas)}
+                {capacity.gas > 0 && <span style={styles.capacityText}>/{formatNumber(capacity.gas)}</span>}
                 {pending.gas > 0 && (
                   <span style={styles.pendingResource}>+{pending.gas}</span>
                 )}
@@ -229,6 +239,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '18px',
     fontWeight: 'bold',
     minWidth: '60px',
+  },
+  capacityText: {
+    fontSize: '13px',
+    color: '#888',
+    fontWeight: 'normal',
   },
   pendingResource: {
     fontSize: '11px',

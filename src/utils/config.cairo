@@ -80,7 +80,7 @@ pub fn get_storage_capacity(building_type: BuildingType, level: u8) -> u64 {
     let base_capacity: u64 = match building_type {
         BuildingType::DiamondStorage => 1500,
         BuildingType::GasStorage => 1500,
-        BuildingType::TownHall => 1000, // Town hall has some storage
+        BuildingType::TownHall => 2500, // Town hall has some storage
         _ => 0,
     };
 
