@@ -3,7 +3,7 @@ import { useAccount } from '@starknet-react/core'
 import { useAttack, BattleState } from '../../hooks/useAttack'
 import { useTroops } from '../../hooks/useTroops'
 import { useDojo, Building, Player } from '../../providers/DojoProvider'
-import { TroopType, TROOP_INFO, BuildingType, SpellType, SPELL_INFO, SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE, getLeague } from '../../config/dojoConfig'
+import { TroopType, TROOP_INFO, BuildingType, SpellType, SPELL_INFO, SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE, getLeague, dojoConfig, NO_FEE_DETAILS } from '../../config/dojoConfig'
 import {
   GRID_SIZE,
   ISO_CANVAS_W,
@@ -50,6 +50,7 @@ interface SimTroop {
   health: number
   alive: boolean
   targetBuildingId: number
+  damageMultiplier: number
 }
 
 interface SimBuilding {
@@ -82,15 +83,70 @@ const BUILDING_SPRITES: Partial<Record<number, string>> = {
   [BuildingType.GasStorage]: '/buildings/gas-storage.png',
 }
 
+// Spell constants matching Cairo config
+const SPELL_RADIUS = 30 // pixels (3 tiles * 10)
+const LIGHTNING_DAMAGE = 200
+const HEAL_AMOUNT = 150
+
+interface SimSpell {
+  type: SpellType
+  x: number
+  y: number
+}
+
 function runReplaySimulation(
   initialTroops: SimTroop[],
   initialBuildings: SimBuilding[],
+  spells: SimSpell[] = [],
 ): TickSnapshot[] {
   const snapshots: TickSnapshot[] = []
   const troops = initialTroops.map(t => ({ ...t }))
   const buildings = initialBuildings.map(b => ({ ...b }))
 
-  // Record initial state
+  // === Apply spells before simulation (matching on-chain logic) ===
+  const radiusSq = SPELL_RADIUS * SPELL_RADIUS
+  for (const spell of spells) {
+    if (spell.type === SpellType.Lightning) {
+      // Deal damage to all buildings in radius
+      for (const building of buildings) {
+        if (building.destroyed) continue
+        const bx = building.x * 10
+        const by = building.y * 10
+        const dx = spell.x - bx
+        const dy = spell.y - by
+        if (dx * dx + dy * dy <= radiusSq) {
+          building.currentHealth -= LIGHTNING_DAMAGE
+          if (building.currentHealth <= 0) {
+            building.currentHealth = 0
+            building.destroyed = true
+          }
+        }
+      }
+    } else if (spell.type === SpellType.Heal) {
+      // Heal all troops in radius
+      for (const troop of troops) {
+        if (!troop.alive) continue
+        const dx = spell.x - troop.x
+        const dy = spell.y - troop.y
+        if (dx * dx + dy * dy <= radiusSq) {
+          const maxHealth = TROOP_CONFIG[troop.type]?.health ?? 45
+          troop.health = Math.min(troop.health + HEAL_AMOUNT, maxHealth)
+        }
+      }
+    } else if (spell.type === SpellType.Rage) {
+      // Double damage for all troops in radius
+      for (const troop of troops) {
+        if (!troop.alive) continue
+        const dx = spell.x - troop.x
+        const dy = spell.y - troop.y
+        if (dx * dx + dy * dy <= radiusSq) {
+          troop.damageMultiplier = 2
+        }
+      }
+    }
+  }
+
+  // Record initial state (after spells applied)
   snapshots.push(captureSnapshot(troops, buildings))
 
   for (let tick = 0; tick < TICKS_PER_BATTLE; tick++) {
@@ -142,15 +198,16 @@ function runReplaySimulation(
           const rangeSq = rangePx * rangePx
 
           if (distSq <= rangeSq) {
-            // Attack
-            target.currentHealth -= config.damage
+            // Attack (apply damage multiplier from rage spell)
+            const effectiveDamage = config.damage * (troop.damageMultiplier || 1)
+            target.currentHealth -= effectiveDamage
             if (target.currentHealth <= 0) {
               target.currentHealth = 0
               target.destroyed = true
               troop.targetBuildingId = 0
             }
           } else {
-            // Move toward target
+            // Move toward target (matching Cairo's unsigned integer movement logic)
             const absDx = Math.abs(dx)
             const absDy = Math.abs(dy)
             const speed = config.movementSpeed
@@ -211,10 +268,13 @@ function runReplaySimulation(
 
     snapshots.push(captureSnapshot(troops, buildings))
 
-    // 3. Check end conditions
-    const allDestroyed = buildings.every(b => b.destroyed)
+    // 3. Check end conditions (matching on-chain: 100% destruction or all troops dead)
+    const destroyedCount = buildings.filter(b => b.destroyed).length
+    const destructionPercent = Math.floor((destroyedCount * 100) / buildings.length)
+    if (destructionPercent >= 100) break
+
     const allDead = troops.every(t => !t.alive)
-    if (allDestroyed || allDead) break
+    if (allDead) break
   }
 
   return snapshots
@@ -316,8 +376,8 @@ function findBlockingWall(
 export function AttackScreen({ onClose }: AttackScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const { address } = useAccount()
-  const { currentBattle, startAttack, deployTroop, deploySpell, resolveBattle, cancelAttack } = useAttack()
+  const { address, account } = useAccount()
+  const { currentBattle, startAttack, cancelAttack } = useAttack()
   const { barbarians, archers, giants } = useTroops()
   const { fetchDefenderBuildings, fetchAllPlayers, player } = useDojo()
   const [selectedTroop, setSelectedTroop] = useState<TroopType | null>(null)
@@ -915,7 +975,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       if (gx < 0 || gy < 0 || gx >= GRID_SIZE || gy >= GRID_SIZE) return
       if (spellsUsed >= MAX_SPELLS_PER_BATTLE) return
 
-      deploySpell(currentBattle.battleId, selectedSpell, pixelX, pixelY)
+      // Add to local state (on-chain deploy happens in batch when "Launch Attack" is clicked)
       setDeployedSpells(prev => [...prev, { id: prev.length + 1, type: selectedSpell, x: pixelX, y: pixelY }])
       setSpellsUsed(prev => prev + 1)
       return
@@ -935,10 +995,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     if (selectedTroop === TroopType.Archer && localArchers <= 0) return
     if (selectedTroop === TroopType.Giant && localGiants <= 0) return
 
-    // Deploy on-chain
-    deployTroop(currentBattle.battleId, selectedTroop, pixelX, pixelY)
-
-    // Add to local state
+    // Add to local state (on-chain deploy happens in batch when "Launch Attack" is clicked)
     const troopId = deployedTroops.length + 1
     setDeployedTroops(prev => [...prev, { id: troopId, type: selectedTroop, x: pixelX, y: pixelY }])
 
@@ -950,16 +1007,43 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     } else if (selectedTroop === TroopType.Giant) {
       setLocalGiants(prev => prev - 1)
     }
-  }, [phase, currentBattle, selectedTroop, selectedSpell, deployMode, localBarbarians, localArchers, localGiants, spellsUsed, deployTroop, deploySpell, deployedTroops, clientToLogical, isDeployZone])
+  }, [phase, currentBattle, selectedTroop, selectedSpell, deployMode, localBarbarians, localArchers, localGiants, spellsUsed, deployedTroops, clientToLogical, isDeployZone])
 
-  // Launch attack (resolve)
+  // Launch attack: batch all deploy_troop + deploy_spell + resolve_battle in a single multicall
   const handleLaunchAttack = async () => {
-    if (!currentBattle || deployedTroops.length === 0 || pending) return
+    if (!currentBattle || !account || deployedTroops.length === 0 || pending) return
     setPending(true)
     setPhase('resolving')
 
     try {
-      await resolveBattle(currentBattle.battleId)
+      // Build multicall: deploy all troops, then all spells, then resolve
+      const calls: { contractAddress: string; entrypoint: string; calldata: (string | number)[] }[] = []
+
+      for (const troop of deployedTroops) {
+        calls.push({
+          contractAddress: dojoConfig.combatSystemAddress,
+          entrypoint: 'deploy_troop',
+          calldata: [currentBattle.battleId, troop.type, troop.x, troop.y],
+        })
+      }
+
+      for (const spell of deployedSpells) {
+        calls.push({
+          contractAddress: dojoConfig.combatSystemAddress,
+          entrypoint: 'deploy_spell',
+          calldata: [currentBattle.battleId, spell.type, spell.x, spell.y],
+        })
+      }
+
+      calls.push({
+        contractAddress: dojoConfig.combatSystemAddress,
+        entrypoint: 'resolve_battle',
+        calldata: [currentBattle.battleId],
+      })
+
+      // Execute all in one transaction
+      await account.execute(calls, NO_FEE_DETAILS)
+      console.log('Battle resolved on-chain with', deployedTroops.length, 'troops and', deployedSpells.length, 'spells')
 
       // Build simulation initial state from deployed troops and defender buildings
       const simTroops: SimTroop[] = deployedTroops.map(t => ({
@@ -970,6 +1054,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
         health: TROOP_CONFIG[t.type]?.health ?? 45,
         alive: true,
         targetBuildingId: 0,
+        damageMultiplier: 1,
       }))
 
       const simBuildings: SimBuilding[] = defenderBuildings
@@ -985,8 +1070,14 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
           destroyed: false,
         }))
 
-      // Run deterministic replay simulation
-      const snapshots = runReplaySimulation(simTroops, simBuildings)
+      const simSpells: SimSpell[] = deployedSpells.map(s => ({
+        type: s.type,
+        x: s.x,
+        y: s.y,
+      }))
+
+      // Run deterministic replay simulation (matches on-chain logic)
+      const snapshots = runReplaySimulation(simTroops, simBuildings, simSpells)
       setReplaySnapshots(snapshots)
       setReplayTick(0)
       setPhase('replay')
@@ -1002,10 +1093,11 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
         gasStolen: currentBattle.gasStolen,
         tickCount: snapshots.length - 1,
         trophiesChange: currentBattle.trophiesChange,
-        troopsDeployed: currentBattle.troopsDeployed,
+        troopsDeployed: deployedTroops.length,
       })
     } catch (error) {
-      console.error('Resolve failed:', error)
+      console.error('Battle failed:', error)
+      alert('Battle failed on-chain. Check console for details.')
       setPhase('deploy')
     }
     setPending(false)
