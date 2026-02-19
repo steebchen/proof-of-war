@@ -186,7 +186,7 @@ pub fn get_upgrade_time(building_type: BuildingType, level: u8) -> u64 {
 pub const SHIELD_DURATION: u64 = 14400; // 4 hours
 
 // Battle duration in seconds
-pub const BATTLE_DURATION: u64 = 180; // 3 minutes
+pub const BATTLE_DURATION: u64 = 3600; // 1 hour (generous for dev/testing)
 
 // Number of simulation ticks per battle resolve
 pub const TICKS_PER_BATTLE: u32 = 60;
