@@ -77,6 +77,7 @@ export function BottomBar({ onOpenArmy, onOpenAttack, onOpenLeaderboard, onOpenB
                     <span style={styles.buildingName}>{building.name.slice(0, 2)}</span>
                   )}
                 </button>
+                <div style={styles.buildingLabel}>{building.name}</div>
                 {/* Cost display */}
                 <div style={styles.costRow}>
                   {building.cost.diamond > 0 && (
@@ -189,6 +190,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     fontSize: '12px',
     textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
+  },
+  buildingLabel: {
+    fontSize: '9px',
+    color: '#ccc',
+    textAlign: 'center',
+    marginTop: '2px',
+    lineHeight: '1.1',
   },
   costRow: {
     display: 'flex',
