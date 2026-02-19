@@ -213,4 +213,4 @@ pub const HEAL_AMOUNT: u32 = 150;
 pub const RAGE_COST_DIAMOND: u64 = 150;
 
 // Attack cooldown between battles (in seconds)
-pub const ATTACK_COOLDOWN: u64 = 60;
+pub const ATTACK_COOLDOWN: u64 = 5;

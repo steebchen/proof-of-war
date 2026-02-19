@@ -343,7 +343,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [invalidClickPos, setInvalidClickPos] = useState<{ x: number; y: number } | null>(null)
 
   // Attack cooldown (30 seconds)
-  const ATTACK_COOLDOWN = 60
+  const ATTACK_COOLDOWN = 5
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
 
   useEffect(() => {
@@ -889,7 +889,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       if (battleId !== null) {
         setPhase('deploy')
       } else {
-        alert('Failed to start attack. Make sure you have trained troops and the cooldown has passed.')
+        alert('Failed to start attack. Common causes:\n- No troops trained (build a barracks + army camp, then train troops)\n- Attack cooldown not passed yet')
       }
     } catch (error) {
       console.error('Scout failed:', error)
