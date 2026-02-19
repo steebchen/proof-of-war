@@ -142,10 +142,31 @@ function App() {
         maxCapacity: 0,
       })
 
-      // Fetch real data from Torii after a short delay to let indexer catch up
-      setTimeout(() => {
-        fetchPlayerData(address)
-      }, 2000)
+      // Poll Torii for real data with retries (indexer may need time to catch up)
+      const pollForData = async () => {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await new Promise(r => setTimeout(r, 2000))
+          const found = await fetchPlayerData(address)
+          if (found) return
+          // Restore optimistic state while Torii catches up
+          setPlayer({
+            address,
+            username: name,
+            diamond: BigInt(2000),
+            gas: BigInt(1000),
+            trophies: 0,
+            townHallLevel: 1,
+            buildingCount: 1,
+            totalBuilders: 1,
+            freeBuilders: 1,
+            maxBuilders: 5,
+            shieldUntil: BigInt(0),
+            lastAttackAt: BigInt(0),
+          })
+          setBuildings([townHall])
+        }
+      }
+      pollForData()
     } catch (error: unknown) {
       // Check if error is "Player already exists" - this means we should just load the player
       const errorStr = String(error)

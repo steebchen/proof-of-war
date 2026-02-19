@@ -55,12 +55,14 @@ export const BUILDING_SPRITES: Partial<Record<BuildingType, string>> = {
 }
 
 // Skip fee estimation on Katana dev (block timestamp can be stale)
+// tip: 0n prevents starknet.js v8 from calling getEstimateTip() which fails on local Katana
 export const NO_FEE_DETAILS = {
   resourceBounds: {
     l1_gas: { max_amount: 0n, max_price_per_unit: 0n },
     l2_gas: { max_amount: 0n, max_price_per_unit: 0n },
     l1_data_gas: { max_amount: 0n, max_price_per_unit: 0n },
   },
+  tip: 0n,
 }
 
 // Initial construction times in seconds (must match Cairo config)
