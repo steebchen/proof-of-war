@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { useAttack, BattleState } from '../../hooks/useAttack'
+import { useAttack } from '../../hooks/useAttack'
+import type { BattleState } from '../../hooks/useAttack'
 import { useTroops } from '../../hooks/useTroops'
 import { useDojo, Building, Player } from '../../providers/DojoProvider'
 import { TroopType, TROOP_INFO, BuildingType, SpellType, SPELL_INFO, SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE, getLeague, dojoConfig, NO_FEE_DETAILS } from '../../config/dojoConfig'
@@ -377,9 +378,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { address, account } = useAccount()
-  const { currentBattle, startAttack, cancelAttack } = useAttack()
+  const { cancelAttack } = useAttack()
   const { barbarians, archers, giants } = useTroops()
-  const { fetchDefenderBuildings, fetchAllPlayers, player, refreshData } = useDojo()
+  const { fetchDefenderBuildings, fetchAllPlayers, fetchBattleData, player, refreshData } = useDojo()
   const [selectedTroop, setSelectedTroop] = useState<TroopType | null>(null)
   const [targetAddress, setTargetAddress] = useState('')
   const [defenderBuildings, setDefenderBuildings] = useState<Building[]>([])
@@ -934,7 +935,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     setPhase('result')
   }, [replaySnapshots])
 
-  // Scout: fetch defender buildings
+  // Scout: fetch defender buildings (no on-chain call — attack happens in one multicall on Launch)
   const handleScout = async () => {
     if (!targetAddress || pending) return
     setPending(true)
@@ -946,14 +947,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
         return
       }
       setDefenderBuildings(buildings)
-
-      // Start attack on-chain
-      const battleId = await startAttack(targetAddress)
-      if (battleId !== null) {
-        setPhase('deploy')
-      } else {
-        alert('Failed to start attack. Common causes:\n- No troops trained (build a barracks + army camp, then train troops)\n- Attack cooldown not passed yet')
-      }
+      setPhase('deploy')
     } catch (error) {
       console.error('Scout failed:', error)
       alert('Scout failed: ' + String(error))
@@ -963,7 +957,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
   // Deploy troop on canvas click
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (phase !== 'deploy' || !currentBattle) return
+    if (phase !== 'deploy') return
 
     const pos = clientToLogical(e.clientX, e.clientY)
     const { gx, gy } = screenToGrid(pos.x, pos.y)
@@ -1007,42 +1001,56 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     } else if (selectedTroop === TroopType.Giant) {
       setLocalGiants(prev => prev - 1)
     }
-  }, [phase, currentBattle, selectedTroop, selectedSpell, deployMode, localBarbarians, localArchers, localGiants, spellsUsed, deployedTroops, clientToLogical, isDeployZone])
+  }, [phase, selectedTroop, selectedSpell, deployMode, localBarbarians, localArchers, localGiants, spellsUsed, deployedTroops, clientToLogical, isDeployZone])
 
-  // Launch attack: batch all deploy_troop + deploy_spell + resolve_battle in a single multicall
+  // Launch attack: single atomic multicall — start_attack + deploy_troop*N + deploy_spell*N + resolve_battle
   const handleLaunchAttack = async () => {
-    if (!currentBattle || !account || deployedTroops.length === 0 || pending) return
+    if (!account || !address || deployedTroops.length === 0 || pending) return
     setPending(true)
     setPhase('resolving')
 
     try {
-      // Build multicall: deploy all troops, then all spells, then resolve
+      // Predict the next battle ID from BattleCounter
+      const lastBattleId = await fetchBattleData()
+      const battleId = lastBattleId !== null ? (lastBattleId as number) + 1 : 0
+
+      // Build multicall: start_attack + deploy all troops + deploy all spells + resolve
       const calls: { contractAddress: string; entrypoint: string; calldata: (string | number)[] }[] = []
 
+      // 1. Start attack (creates the battle on-chain)
+      calls.push({
+        contractAddress: dojoConfig.combatSystemAddress,
+        entrypoint: 'start_attack',
+        calldata: [targetAddress],
+      })
+
+      // 2. Deploy troops
       for (const troop of deployedTroops) {
         calls.push({
           contractAddress: dojoConfig.combatSystemAddress,
           entrypoint: 'deploy_troop',
-          calldata: [currentBattle.battleId, troop.type, troop.x, troop.y],
+          calldata: [battleId, troop.type, troop.x, troop.y],
         })
       }
 
+      // 3. Deploy spells
       for (const spell of deployedSpells) {
         calls.push({
           contractAddress: dojoConfig.combatSystemAddress,
           entrypoint: 'deploy_spell',
-          calldata: [currentBattle.battleId, spell.type, spell.x, spell.y],
+          calldata: [battleId, spell.type, spell.x, spell.y],
         })
       }
 
+      // 4. Resolve battle
       calls.push({
         contractAddress: dojoConfig.combatSystemAddress,
         entrypoint: 'resolve_battle',
-        calldata: [currentBattle.battleId],
+        calldata: [battleId],
       })
 
       // Execute all in one transaction
-      console.log('Sending multicall with', calls.length, 'calls:')
+      console.log('Sending attack multicall with', calls.length, 'calls (battleId:', battleId, '):')
       for (const call of calls) {
         console.log(`  ${call.entrypoint}(${call.calldata.join(', ')})`);
       }
@@ -1072,6 +1080,24 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
       // Refresh player/army data from Torii (troops are consumed on-chain)
       refreshData()
+
+      // Fetch on-chain battle result from Torii
+      let onChainDiamond = BigInt(0)
+      let onChainGas = BigInt(0)
+      let onChainTrophies = 0
+      try {
+        // Give Torii a moment to index
+        await new Promise(r => setTimeout(r, 500))
+        const battleData = await fetchBattleData(battleId)
+        if (battleData && typeof battleData === 'object') {
+          const data = battleData as import('../../providers/DojoProvider').BattleResultData
+          onChainDiamond = data.diamondStolen
+          onChainGas = data.gasStolen
+          onChainTrophies = data.trophiesChange
+        }
+      } catch (e) {
+        console.warn('Could not fetch battle result from Torii:', e)
+      }
 
       // Build simulation initial state from deployed troops and defender buildings
       const simTroops: SimTroop[] = deployedTroops.map(t => ({
@@ -1110,17 +1136,17 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       setReplayTick(0)
       setPhase('replay')
 
-      // Save final result
+      // Save final result with on-chain data
       const finalSnapshot = snapshots[snapshots.length - 1]
       setBattleResult({
-        battleId: currentBattle.battleId,
-        defender: currentBattle.defender,
+        battleId,
+        defender: targetAddress,
         status: 'ended',
         destructionPercent: finalSnapshot.destructionPercent,
-        diamondStolen: currentBattle.diamondStolen,
-        gasStolen: currentBattle.gasStolen,
+        diamondStolen: onChainDiamond,
+        gasStolen: onChainGas,
         tickCount: snapshots.length - 1,
-        trophiesChange: currentBattle.trophiesChange,
+        trophiesChange: onChainTrophies,
         troopsDeployed: deployedTroops.length,
       })
     } catch (error) {
@@ -1527,7 +1553,14 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
                   ))}
                 </div>
                 <p>Destruction: {battleResult.destructionPercent}%</p>
-                <p>Ticks: {battleResult.tickCount}</p>
+                {(battleResult.diamondStolen > 0 || battleResult.gasStolen > 0) && (
+                  <p>Loot: {battleResult.diamondStolen.toString()} diamond, {battleResult.gasStolen.toString()} gas</p>
+                )}
+                {battleResult.trophiesChange !== 0 && (
+                  <p style={{ color: battleResult.trophiesChange > 0 ? '#2ecc71' : '#e74c3c' }}>
+                    Trophies: {battleResult.trophiesChange > 0 ? '+' : ''}{battleResult.trophiesChange}
+                  </p>
+                )}
                 <button style={styles.returnBtn} onClick={handleClose}>
                   Return to Village
                 </button>
