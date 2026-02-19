@@ -339,6 +339,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [scoutBuildings, setScoutBuildings] = useState<Building[]>([])
   const [loadingScout, setLoadingScout] = useState(false)
 
+  // Invalid click feedback
+  const [invalidClickPos, setInvalidClickPos] = useState<{ x: number; y: number } | null>(null)
+
   // Attack cooldown (30 seconds)
   const ATTACK_COOLDOWN = 30
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
@@ -541,8 +544,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
     // Draw grid
     drawIsoGrid(ctx)
 
-    // Draw deployment zones (green tinted edge tiles) during deploy phase
+    // Draw deployment zones (pulsing green edge tiles) during deploy phase
     if (phase === 'deploy') {
+      const pulse = 0.10 + 0.08 * Math.sin(Date.now() / 400)
       for (let gx = 0; gx < GRID_SIZE; gx++) {
         for (let gy = 0; gy < GRID_SIZE; gy++) {
           if (isDeployZone(gx, gy)) {
@@ -556,10 +560,31 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
             ctx.lineTo(bottom.x, bottom.y)
             ctx.lineTo(left.x, left.y)
             ctx.closePath()
-            ctx.fillStyle = 'rgba(46, 204, 113, 0.15)'
+            ctx.fillStyle = `rgba(46, 204, 113, ${pulse})`
             ctx.fill()
           }
         }
+      }
+
+      // Red X indicator for invalid click position
+      if (invalidClickPos) {
+        ctx.strokeStyle = '#e74c3c'
+        ctx.lineWidth = 3
+        ctx.globalAlpha = 0.8
+        const sz = 10
+        ctx.beginPath()
+        ctx.moveTo(invalidClickPos.x - sz, invalidClickPos.y - sz)
+        ctx.lineTo(invalidClickPos.x + sz, invalidClickPos.y + sz)
+        ctx.moveTo(invalidClickPos.x + sz, invalidClickPos.y - sz)
+        ctx.lineTo(invalidClickPos.x - sz, invalidClickPos.y + sz)
+        ctx.stroke()
+        // "Deploy at edges" text
+        ctx.fillStyle = '#e74c3c'
+        ctx.font = 'bold 10px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.fillText('Deploy at edges!', invalidClickPos.x, invalidClickPos.y + sz + 4)
+        ctx.globalAlpha = 1.0
       }
     }
 
@@ -809,7 +834,14 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       ctx.fillText(`Tick: ${replayTick}/${replaySnapshots.length - 1}`, 20, 18)
       ctx.fillText(`Destruction: ${currentSnapshot.destructionPercent}%`, 20, 38)
     }
-  }, [canvasSize, getTransform, defenderBuildings, deployedTroops, deployedSpells, phase, replaySnapshots, replayTick, isDeployZone, spritesLoaded, camTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canvasSize, getTransform, defenderBuildings, deployedTroops, deployedSpells, phase, replaySnapshots, replayTick, isDeployZone, spritesLoaded, camTick, invalidClickPos]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pulse animation tick for deploy zone
+  useEffect(() => {
+    if (phase !== 'deploy') return
+    const interval = setInterval(() => setCamTick(t => t + 1), 100)
+    return () => clearInterval(interval)
+  }, [phase])
 
   useEffect(() => { draw() }, [draw])
 
@@ -885,7 +917,12 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
     // Troop deployment
     if (selectedTroop === null) return
-    if (!isDeployZone(gx, gy)) return
+    if (!isDeployZone(gx, gy)) {
+      // Flash red indicator at invalid position
+      setInvalidClickPos({ x: pos.x, y: pos.y })
+      setTimeout(() => setInvalidClickPos(null), 500)
+      return
+    }
 
     // Check troop availability
     if (selectedTroop === TroopType.Barbarian && localBarbarians <= 0) return
