@@ -1078,27 +1078,6 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
       console.log('Battle resolved on-chain with', deployedTroops.length, 'troops and', deployedSpells.length, 'spells')
 
-      // Refresh player/army data from Torii (troops are consumed on-chain)
-      refreshData()
-
-      // Fetch on-chain battle result from Torii
-      let onChainDiamond = BigInt(0)
-      let onChainGas = BigInt(0)
-      let onChainTrophies = 0
-      try {
-        // Give Torii a moment to index
-        await new Promise(r => setTimeout(r, 500))
-        const battleData = await fetchBattleData(battleId)
-        if (battleData && typeof battleData === 'object') {
-          const data = battleData as import('../../providers/DojoProvider').BattleResultData
-          onChainDiamond = data.diamondStolen
-          onChainGas = data.gasStolen
-          onChainTrophies = data.trophiesChange
-        }
-      } catch (e) {
-        console.warn('Could not fetch battle result from Torii:', e)
-      }
-
       // Build simulation initial state from deployed troops and defender buildings
       const simTroops: SimTroop[] = deployedTroops.map(t => ({
         id: t.id,
@@ -1132,9 +1111,31 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
       // Run deterministic replay simulation (matches on-chain logic)
       const snapshots = runReplaySimulation(simTroops, simBuildings, simSpells)
+      console.log('Replay simulation produced', snapshots.length, 'snapshots from', simTroops.length, 'troops and', simBuildings.length, 'buildings')
+
+      // Start replay BEFORE refreshing data — refreshData triggers Torii re-subscription
+      // which can cause state cascades that interfere with the replay
       setReplaySnapshots(snapshots)
       setReplayTick(0)
       setPhase('replay')
+
+      // Fetch on-chain battle result from Torii (non-blocking)
+      let onChainDiamond = BigInt(0)
+      let onChainGas = BigInt(0)
+      let onChainTrophies = 0
+      try {
+        // Give Torii a moment to index
+        await new Promise(r => setTimeout(r, 500))
+        const battleData = await fetchBattleData(battleId)
+        if (battleData && typeof battleData === 'object') {
+          const data = battleData as import('../../providers/DojoProvider').BattleResultData
+          onChainDiamond = data.diamondStolen
+          onChainGas = data.gasStolen
+          onChainTrophies = data.trophiesChange
+        }
+      } catch (e) {
+        console.warn('Could not fetch battle result from Torii:', e)
+      }
 
       // Save final result with on-chain data
       const finalSnapshot = snapshots[snapshots.length - 1]
@@ -1149,6 +1150,9 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
         trophiesChange: onChainTrophies,
         troopsDeployed: deployedTroops.length,
       })
+
+      // Refresh player/army data from Torii AFTER replay is set up
+      refreshData()
     } catch (error) {
       console.error('Battle failed:', error)
       const errorMsg = error instanceof Error ? error.message : String(error)
