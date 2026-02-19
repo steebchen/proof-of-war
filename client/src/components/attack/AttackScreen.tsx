@@ -611,13 +611,99 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       }
     }
 
+    // Previous tick snapshot for transition effects
+    const prevSnapshot = (phase === 'replay' || phase === 'result') && replayTick > 0 && replaySnapshots.length > 1
+      ? replaySnapshots[Math.min(replayTick - 1, replaySnapshots.length - 1)]
+      : null
+
+    // Draw attack effects: lines from defense buildings to target troops
+    if (currentSnapshot && prevSnapshot && phase === 'replay') {
+      for (const building of defenderBuildings) {
+        const defenseConfig = DEFENSE_STATS[building.buildingType]
+        if (!defenseConfig) continue
+        const snapshotBuilding = currentSnapshot.buildings.find(b => b.buildingId === building.buildingId)
+        if (snapshotBuilding?.destroyed) continue
+
+        // Check if any troop took damage this tick (defense attacked)
+        const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
+        const bScreen = gridToScreen(building.x + size.width / 2, building.y + size.height / 2)
+
+        for (const troop of currentSnapshot.troops) {
+          const prevTroop = prevSnapshot.troops.find(t => t.id === troop.id)
+          if (!prevTroop || !prevTroop.alive) continue
+          if (prevTroop.health > troop.health && troop.health > 0) {
+            // Troop took damage — draw projectile line from nearest defense
+            const tScreen = gridToScreen(troop.x / 10, troop.y / 10)
+            const dx = tScreen.x - bScreen.x
+            const dy = tScreen.y - bScreen.y
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            const rangePx = defenseConfig.range * 15 // approximate screen distance
+
+            if (dist < rangePx) {
+              ctx.strokeStyle = building.buildingType === BuildingType.Cannon ? '#ff6600' : '#00aaff'
+              ctx.lineWidth = 2
+              ctx.globalAlpha = 0.6
+              ctx.beginPath()
+              ctx.moveTo(bScreen.x, bScreen.y - 10)
+              ctx.lineTo(tScreen.x, tScreen.y - 4)
+              ctx.stroke()
+              ctx.globalAlpha = 1.0
+              break // one line per defense per tick
+            }
+          }
+        }
+      }
+
+      // Draw destruction explosion effects
+      for (const b of currentSnapshot.buildings) {
+        const prevB = prevSnapshot.buildings.find(pb => pb.buildingId === b.buildingId)
+        if (b.destroyed && prevB && !prevB.destroyed) {
+          const building = defenderBuildings.find(db => db.buildingId === b.buildingId)
+          if (building) {
+            const size = BUILDING_SIZES[building.buildingType] || { width: 1, height: 1 }
+            const center = gridToScreen(building.x + size.width / 2, building.y + size.height / 2)
+            // Explosion burst
+            ctx.globalAlpha = 0.7
+            for (let i = 0; i < 8; i++) {
+              const angle = (i / 8) * Math.PI * 2
+              const r = 12 + Math.random() * 8
+              ctx.fillStyle = i % 2 === 0 ? '#ff4400' : '#ffaa00'
+              ctx.beginPath()
+              ctx.arc(center.x + Math.cos(angle) * r, center.y - 10 + Math.sin(angle) * r, 3, 0, Math.PI * 2)
+              ctx.fill()
+            }
+            ctx.globalAlpha = 1.0
+          }
+        }
+      }
+    }
+
     // Draw troops (deployed or replay)
     const troopsToRender = currentSnapshot
       ? currentSnapshot.troops
       : deployedTroops.map(t => ({ id: t.id, x: t.x, y: t.y, alive: true, health: TROOP_CONFIG[t.type]?.health ?? 45 }))
 
     for (const troop of troopsToRender) {
-      if (!troop.alive) continue
+      if (!troop.alive) {
+        // Dead troop marker (X)
+        if (currentSnapshot && prevSnapshot) {
+          const prevTroop = prevSnapshot.troops.find(t => t.id === troop.id)
+          if (prevTroop?.alive) {
+            const screen = gridToScreen(troop.x / 10, troop.y / 10)
+            ctx.strokeStyle = '#e74c3c'
+            ctx.lineWidth = 2
+            ctx.globalAlpha = 0.8
+            ctx.beginPath()
+            ctx.moveTo(screen.x - 4, screen.y - 8)
+            ctx.lineTo(screen.x + 4, screen.y)
+            ctx.moveTo(screen.x + 4, screen.y - 8)
+            ctx.lineTo(screen.x - 4, screen.y)
+            ctx.stroke()
+            ctx.globalAlpha = 1.0
+          }
+        }
+        continue
+      }
 
       // Convert pixel coords (0-399) to grid coords for isometric rendering
       const gridX = troop.x / 10
@@ -629,14 +715,47 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       const troopType = deployedInfo?.type ?? TroopType.Barbarian
       const info = TROOP_INFO[troopType]
 
+      // Check if troop is attacking (position hasn't changed much = in range and attacking)
+      let isAttacking = false
+      if (currentSnapshot && prevSnapshot) {
+        const prevTroop = prevSnapshot.troops.find(t => t.id === troop.id)
+        if (prevTroop && prevTroop.alive) {
+          const dx = troop.x - prevTroop.x
+          const dy = troop.y - prevTroop.y
+          if (dx === 0 && dy === 0) {
+            isAttacking = true
+          }
+        }
+      }
+
+      // Attack pulse effect
+      if (isAttacking && phase === 'replay') {
+        ctx.strokeStyle = info.color
+        ctx.lineWidth = 1
+        ctx.globalAlpha = 0.4
+        ctx.beginPath()
+        ctx.arc(screen.x, screen.y - 4, 9, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.globalAlpha = 1.0
+      }
+
       // Troop circle
       ctx.fillStyle = info.color
       ctx.beginPath()
-      ctx.arc(screen.x, screen.y - 4, 5, 0, Math.PI * 2)
+      ctx.arc(screen.x, screen.y - 4, troopType === TroopType.Giant ? 7 : 5, 0, Math.PI * 2)
       ctx.fill()
       ctx.strokeStyle = '#fff'
       ctx.lineWidth = 1.5
       ctx.stroke()
+
+      // Troop label for Giants
+      if (troopType === TroopType.Giant) {
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 7px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('G', screen.x, screen.y - 4)
+      }
 
       // Troop health bar
       const maxHp = TROOP_CONFIG[troopType]?.health ?? 45
@@ -645,7 +764,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       const tBarW = 14
       const tBarH = 2
       const tBarX = screen.x - tBarW / 2
-      const tBarY = screen.y - 13
+      const tBarY = screen.y - (troopType === TroopType.Giant ? 15 : 13)
 
       ctx.fillStyle = '#333'
       ctx.fillRect(tBarX, tBarY, tBarW, tBarH)
