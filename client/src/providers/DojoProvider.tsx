@@ -312,14 +312,14 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Fetch player data from Torii
-  const fetchPlayerData = useCallback(async (address: string): Promise<boolean> => {
+  const fetchPlayerData = useCallback(async (address: string, silent = false): Promise<boolean> => {
     if (!sdk) {
       console.error('SDK not initialized')
       return false
     }
 
     try {
-      setIsLoading(true)
+      if (!silent) setIsLoading(true)
       const paddedAddress = addAddressPadding(address)
 
       // Fetch Player entity
@@ -458,10 +458,10 @@ export function DojoProvider({ children }: { children: ReactNode }) {
       return true
     } catch (err) {
       console.error('Failed to fetch player data:', err)
-      setError('Failed to fetch player data from Torii')
+      if (!silent) setError('Failed to fetch player data from Torii')
       return false
     } finally {
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }, [sdk])
 
@@ -776,7 +776,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
 
   const refreshData = useCallback(() => {
     if (player?.address) {
-      fetchPlayerData(player.address)
+      fetchPlayerData(player.address, true)
     }
   }, [player?.address, fetchPlayerData])
 
