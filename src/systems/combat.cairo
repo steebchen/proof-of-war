@@ -71,7 +71,8 @@ pub mod combat_system {
         BATTLE_DURATION, TROPHY_WIN_BASE, TROPHY_LOSS_BASE, LOOT_PERCENTAGE, LOOT_PROTECTION,
         TICKS_PER_BATTLE, SHIELD_DURATION, get_defense_stats, get_building_health,
         SPELL_UNLOCK_TH_LEVEL, MAX_SPELLS_PER_BATTLE, SPELL_RADIUS,
-        LIGHTNING_COST_DIAMOND, LIGHTNING_DAMAGE, HEAL_COST_DIAMOND, HEAL_AMOUNT, RAGE_COST_DIAMOND
+        LIGHTNING_COST_DIAMOND, LIGHTNING_DAMAGE, HEAL_COST_DIAMOND, HEAL_AMOUNT, RAGE_COST_DIAMOND,
+        ATTACK_COOLDOWN
     };
 
     #[abi(embed_v0)]
@@ -84,11 +85,14 @@ pub mod combat_system {
             // Validation
             assert(attacker != defender, 'Cannot attack yourself');
 
-            let attacker_player: Player = world.read_model(attacker);
+            let mut attacker_player: Player = world.read_model(attacker);
             let defender_player: Player = world.read_model(defender);
 
             assert(attacker_player.town_hall_level > 0, 'Attacker not spawned');
             assert(defender_player.town_hall_level > 0, 'Defender not found');
+
+            // Check attack cooldown
+            assert(current_time >= attacker_player.last_attack_at + ATTACK_COOLDOWN, 'Attack on cooldown');
 
             // Check defender is not shielded
             assert(defender_player.shield_until < current_time, 'Defender is shielded');
@@ -96,6 +100,10 @@ pub mod combat_system {
             // Check attacker has troops
             let attacker_army: Army = world.read_model(attacker);
             assert(attacker_army.total_space_used > 0, 'No troops to attack');
+
+            // Set last attack timestamp
+            attacker_player.last_attack_at = current_time;
+            world.write_model(@attacker_player);
 
             // Get and increment battle counter
             let mut counter: BattleCounter = world.read_model(0_u8);

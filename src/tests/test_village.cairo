@@ -635,6 +635,14 @@ fn test_cannot_attack_shielded_player() {
     combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
     combat_dispatcher.resolve_battle(0);
 
+    // Advance time past attack cooldown, but still within shield duration
+    starknet::testing::set_block_timestamp(600);
+
+    // Need more troops for the second attack attempt
+    training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
+    starknet::testing::set_block_timestamp(700);
+    training_dispatcher.collect_trained_troops(3);
+
     // Try to attack again while shielded — should panic
     combat_dispatcher.start_attack(defender);
 }

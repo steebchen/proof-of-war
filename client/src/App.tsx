@@ -114,6 +114,7 @@ function App() {
         freeBuilders: 1,
         maxBuilders: 5,
         shieldUntil: BigInt(0),
+        lastAttackAt: BigInt(0),
       })
 
       const townHall: Building = {

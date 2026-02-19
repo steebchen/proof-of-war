@@ -15,6 +15,7 @@ export type ClashSchemaType = {
       free_builders: string // u8 as string
       max_builders: string // u8 as string
       shield_until: string // u64 as string
+      last_attack_at: string // u64 as string
     }
     Building: {
       owner: string

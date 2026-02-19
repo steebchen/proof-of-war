@@ -18,6 +18,7 @@ export interface Player {
   freeBuilders: number
   maxBuilders: number
   shieldUntil: bigint
+  lastAttackAt: bigint
 }
 
 export interface Building {
@@ -180,6 +181,7 @@ function transformPlayer(data: ClashSchemaType['clash']['Player'], address: stri
     freeBuilders: parseInt(data.free_builders ?? '1', 10),
     maxBuilders: parseInt(data.max_builders ?? '1', 10),
     shieldUntil: BigInt(data.shield_until ?? '0'),
+    lastAttackAt: BigInt(data.last_attack_at ?? '0'),
   }
 }
 

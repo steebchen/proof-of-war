@@ -55,6 +55,7 @@ pub mod village {
                 free_builders: 1,
                 max_builders: 5,
                 shield_until: 0,
+                last_attack_at: 0,
             };
             world.write_model(@player);
 

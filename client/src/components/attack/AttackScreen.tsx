@@ -339,6 +339,23 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [scoutBuildings, setScoutBuildings] = useState<Building[]>([])
   const [loadingScout, setLoadingScout] = useState(false)
 
+  // Attack cooldown (30 seconds)
+  const ATTACK_COOLDOWN = 30
+  const [cooldownRemaining, setCooldownRemaining] = useState(0)
+
+  useEffect(() => {
+    if (!player?.lastAttackAt) return
+    const tick = () => {
+      const now = Math.floor(Date.now() / 1000)
+      const elapsed = now - Number(player.lastAttackAt)
+      const remaining = Math.max(0, ATTACK_COOLDOWN - elapsed)
+      setCooldownRemaining(remaining)
+    }
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [player?.lastAttackAt])
+
   // Fetch opponents on mount, sorted by trophy proximity
   useEffect(() => {
     setLoadingOpponents(true)
@@ -1044,11 +1061,11 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
                   </div>
                 )}
                 <button
-                  style={{ ...styles.startBtn, opacity: pending ? 0.5 : 1, marginTop: '8px' }}
+                  style={{ ...styles.startBtn, opacity: pending || cooldownRemaining > 0 ? 0.5 : 1, marginTop: '8px' }}
                   onClick={handleScout}
-                  disabled={pending}
+                  disabled={pending || cooldownRemaining > 0}
                 >
-                  {pending ? 'Scouting...' : 'Scout & Attack'}
+                  {pending ? 'Scouting...' : cooldownRemaining > 0 ? `Cooldown (${cooldownRemaining}s)` : 'Scout & Attack'}
                 </button>
               </div>
             )}
