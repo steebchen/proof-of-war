@@ -252,14 +252,20 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [opponents, setOpponents] = useState<Player[]>([])
   const [loadingOpponents, setLoadingOpponents] = useState(true)
 
-  // Fetch opponents on mount
+  // Fetch opponents on mount, sorted by trophy proximity
   useEffect(() => {
     setLoadingOpponents(true)
     fetchAllPlayers(address).then(players => {
-      setOpponents(players)
+      const myTrophies = player?.trophies ?? 0
+      const sorted = players
+        .filter(p => p.shieldUntil <= BigInt(Math.floor(Date.now() / 1000)))
+        .sort((a, b) => Math.abs(a.trophies - myTrophies) - Math.abs(b.trophies - myTrophies))
+      // Put shielded players at the end
+      const shielded = players.filter(p => p.shieldUntil > BigInt(Math.floor(Date.now() / 1000)))
+      setOpponents([...sorted, ...shielded])
       setLoadingOpponents(false)
     })
-  }, [fetchAllPlayers, address])
+  }, [fetchAllPlayers, address, player?.trophies])
 
   // Replay state
   const [replaySnapshots, setReplaySnapshots] = useState<TickSnapshot[]>([])
@@ -821,7 +827,22 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
 
         {phase === 'scout' && (
           <div style={styles.scoutPhase}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#e74c3c' }}>Choose an Opponent</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, color: '#e74c3c' }}>Choose an Opponent</h3>
+              {opponents.length > 0 && !loadingOpponents && (
+                <button
+                  style={{ ...styles.startBtn, padding: '8px 16px', fontSize: '13px' }}
+                  onClick={() => {
+                    const bestMatch = opponents.find(o => o.shieldUntil <= BigInt(Math.floor(Date.now() / 1000)))
+                    if (bestMatch) {
+                      setTargetAddress(bestMatch.address)
+                    }
+                  }}
+                >
+                  Find Match
+                </button>
+              )}
+            </div>
             {loadingOpponents ? (
               <div style={{ textAlign: 'center', padding: '32px', color: '#888' }}>
                 Loading opponents...
