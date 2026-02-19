@@ -343,7 +343,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const [invalidClickPos, setInvalidClickPos] = useState<{ x: number; y: number } | null>(null)
 
   // Attack cooldown (30 seconds)
-  const ATTACK_COOLDOWN = 30
+  const ATTACK_COOLDOWN = 60
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
 
   useEffect(() => {

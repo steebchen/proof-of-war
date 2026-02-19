@@ -36,6 +36,7 @@ export type ClashSchemaType = {
       giants: string // u16 as string
       total_space_used: string // u16 as string
       max_capacity: string // u16 as string
+      reserved_space: string // u16 as string
     }
     TrainingQueue: {
       owner: string

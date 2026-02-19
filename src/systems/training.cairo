@@ -63,17 +63,78 @@ pub mod training_system {
             assert(barracks.building_type == BuildingType::Barracks, 'Not a barracks');
             assert(!barracks.is_upgrading, 'Barracks upgrading');
 
-            // Check existing queue - must collect trained troops before starting new training
-            let existing_queue: TrainingQueue = world.read_model((player_address, barracks_id));
-            assert(existing_queue.quantity == 0, 'Collect troops first');
-
             // Get troop config
             let config = get_troop_config(troop_type);
 
-            // Check army capacity
-            let army: Army = world.read_model(player_address);
+            // Check existing queue
+            let existing_queue: TrainingQueue = world.read_model((player_address, barracks_id));
+            let mut army: Army = world.read_model(player_address);
+
+            if existing_queue.quantity > 0 {
+                if current_time >= existing_queue.finish_time {
+                    // Auto-collect finished troops
+                    let finished_config = get_troop_config(existing_queue.troop_type);
+                    let finished_space: u16 = finished_config.housing_space.into() * existing_queue.quantity.into();
+                    match existing_queue.troop_type {
+                        TroopType::Barbarian => {
+                            army.barbarians += existing_queue.quantity.into();
+                        },
+                        TroopType::Archer => {
+                            army.archers += existing_queue.quantity.into();
+                        },
+                        TroopType::Giant => {
+                            army.giants += existing_queue.quantity.into();
+                        },
+                    }
+                    army.total_space_used += finished_space;
+                    army.reserved_space -= finished_space;
+
+                    world.emit_event(@TroopsCollected {
+                        player: player_address,
+                        troop_type: existing_queue.troop_type,
+                        quantity: existing_queue.quantity,
+                    });
+                    // Queue is now clear, proceed to start new training below
+                } else {
+                    // In-progress: allow stacking same troop type
+                    assert(existing_queue.troop_type == troop_type, 'Barracks busy');
+
+                    let space_needed: u16 = config.housing_space.into() * quantity.into();
+                    assert(army.total_space_used + army.reserved_space + space_needed <= army.max_capacity, 'Not enough army space');
+
+                    let total_cost = config.training_cost_gas * quantity.into();
+                    assert(player.gas >= total_cost, 'Not enough gas');
+
+                    player.gas -= total_cost;
+                    world.write_model(@player);
+
+                    let additional_time = config.training_time * quantity.into();
+                    let new_quantity: u8 = existing_queue.quantity + quantity;
+                    army.reserved_space += space_needed;
+                    world.write_model(@army);
+
+                    let queue = TrainingQueue {
+                        owner: player_address,
+                        barracks_id,
+                        troop_type,
+                        quantity: new_quantity,
+                        finish_time: existing_queue.finish_time + additional_time,
+                    };
+                    world.write_model(@queue);
+
+                    world.emit_event(@TroopsTrainingStarted {
+                        player: player_address,
+                        barracks_id,
+                        troop_type,
+                        quantity,
+                    });
+                    return;
+                }
+            }
+
+            // Start new training (queue was empty or auto-collected)
             let space_needed: u16 = config.housing_space.into() * quantity.into();
-            assert(army.total_space_used + space_needed <= army.max_capacity, 'Not enough army space');
+            assert(army.total_space_used + army.reserved_space + space_needed <= army.max_capacity, 'Not enough army space');
 
             // Calculate total cost
             let total_cost = config.training_cost_gas * quantity.into();
@@ -82,6 +143,10 @@ pub mod training_system {
             // Deduct gas
             player.gas -= total_cost;
             world.write_model(@player);
+
+            // Update reserved space
+            army.reserved_space += space_needed;
+            world.write_model(@army);
 
             // Calculate training time
             let total_time = config.training_time * quantity.into();
@@ -132,8 +197,10 @@ pub mod training_system {
                 },
             }
 
-            // Update space used
-            army.total_space_used += config.housing_space.into() * queue.quantity.into();
+            // Update space: move from reserved to used
+            let collected_space: u16 = config.housing_space.into() * queue.quantity.into();
+            army.total_space_used += collected_space;
+            army.reserved_space -= collected_space;
             world.write_model(@army);
 
             // Clear queue

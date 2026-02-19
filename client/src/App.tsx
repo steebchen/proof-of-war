@@ -140,6 +140,7 @@ function App() {
         giants: 0,
         totalSpaceUsed: 0,
         maxCapacity: 0,
+        reservedSpace: 0,
       })
 
       // Poll Torii for real data with retries (indexer may need time to catch up)
@@ -326,6 +327,23 @@ function App() {
         />
       )}
 
+      {/* Dev mode: spawn/respawn button */}
+      {isConnected && (
+        <button
+          style={styles.devSpawnBtn}
+          onClick={async () => {
+            if (isSpawning) return
+            setPlayer(null)
+            setBuildings([])
+            setArmy(null)
+            hasFetchedRef.current = false
+            await handleSpawn()
+          }}
+          disabled={isSpawning}
+        >
+          {isSpawning ? 'Spawning...' : player ? 'Dev: Respawn' : 'Dev: Spawn'}
+        </button>
+      )}
     </div>
   )
 }
@@ -439,6 +457,21 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     margin: '24px auto',
     animation: 'spin 1s linear infinite',
+  },
+  devSpawnBtn: {
+    position: 'fixed',
+    top: '56px',
+    left: '16px',
+    padding: '6px 12px',
+    backgroundColor: '#e67e22',
+    color: '#fff',
+    border: '2px solid #d35400',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    fontSize: '11px',
+    zIndex: 200,
+    opacity: 0.8,
   },
 }
 

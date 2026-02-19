@@ -5,7 +5,7 @@ import { TroopType, TROOP_INFO, BuildingType, dojoConfig, NO_FEE_DETAILS } from 
 import { useResources } from './useResources'
 
 export function useTroops() {
-  const { army, setArmy, buildings } = useDojo()
+  const { army, setArmy, buildings, trainingQueues } = useDojo()
   const { account } = useAccount()
   const { canAfford } = useResources()
 
@@ -14,16 +14,15 @@ export function useTroops() {
   const giants = army?.giants ?? 0
   const totalSpace = army?.totalSpaceUsed ?? 0
   const maxCapacity = army?.maxCapacity ?? 0
-
   const trainTroops = useCallback(async (troopType: TroopType, quantity: number) => {
     if (!account || !army) return false
 
     const troopInfo = TROOP_INFO[troopType]
     const totalCost = troopInfo.cost * quantity
-    const totalSpace = troopInfo.space * quantity
+    const spaceNeeded = troopInfo.space * quantity
 
-    // Check if we have capacity
-    if (army.totalSpaceUsed + totalSpace > army.maxCapacity) {
+    // Check if we have capacity (including reserved space)
+    if (army.totalSpaceUsed + (army.reservedSpace ?? 0) + spaceNeeded > army.maxCapacity) {
       console.error('Not enough army capacity')
       return false
     }
@@ -34,8 +33,28 @@ export function useTroops() {
       return false
     }
 
-    // Find first barracks building
-    const barracks = buildings.find(b => b.buildingType === BuildingType.Barracks && !b.isUpgrading)
+    // Find available barracks: empty queue, finished queue, or same troop type in-progress
+    const now = Math.floor(Date.now() / 1000)
+    const allBarracks = buildings.filter(b => b.buildingType === BuildingType.Barracks && !b.isUpgrading && b.level > 0)
+    let barracks = null
+    for (const b of allBarracks) {
+      const queue = trainingQueues.find(q => q.barracksId === b.buildingId)
+      if (!queue || queue.quantity <= 0) {
+        // Empty queue — best option
+        barracks = b
+        break
+      }
+      if (Number(queue.finishTime) <= now) {
+        // Finished — will auto-collect on-chain
+        barracks = b
+        break
+      }
+      if (queue.troopType === troopType) {
+        // Same type in-progress — can stack
+        barracks = b
+        break
+      }
+    }
     if (!barracks) {
       console.error('No available barracks')
       return false
@@ -51,7 +70,7 @@ export function useTroops() {
     } else if (troopType === TroopType.Giant) {
       newArmy.giants += quantity
     }
-    newArmy.totalSpaceUsed += totalSpace
+    newArmy.totalSpaceUsed += spaceNeeded
     setArmy(newArmy)
 
     try {
@@ -69,7 +88,7 @@ export function useTroops() {
       setArmy(prevArmy)
       return false
     }
-  }, [account, army, buildings, canAfford, setArmy])
+  }, [account, army, buildings, trainingQueues, canAfford, setArmy])
 
   const collectTroops = useCallback(async (barracksId: number) => {
     if (!account) return false

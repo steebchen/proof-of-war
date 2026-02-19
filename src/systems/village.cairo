@@ -82,6 +82,7 @@ pub mod village {
                 giants: 0,
                 total_space_used: 0,
                 max_capacity: 0, // No army camps yet
+                reserved_space: 0,
             };
             world.write_model(@army);
 

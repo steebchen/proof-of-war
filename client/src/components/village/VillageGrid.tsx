@@ -916,14 +916,30 @@ export function VillageGrid() {
     if (!account || pending || !player) return
     setPending(true)
 
-    const troopConfig = troopType === TroopType.Barbarian ? { time: 20 } : { time: 25 }
-    const totalTime = troopConfig.time * quantity
-    const optimisticQueue: TrainingQueue = {
-      owner: account.address,
-      barracksId,
-      troopType,
-      quantity,
-      finishTime: BigInt(Math.floor(Date.now() / 1000) + totalTime),
+    const troopTimes: Record<number, number> = { [TroopType.Barbarian]: 3, [TroopType.Archer]: 5, [TroopType.Giant]: 10 }
+    const timePerUnit = troopTimes[troopType] ?? 3
+    const additionalTime = timePerUnit * quantity
+    const existingQueue = trainingQueues.find(q => q.barracksId === barracksId)
+    const nowSec = Math.floor(Date.now() / 1000)
+    let optimisticQueue: TrainingQueue
+    if (existingQueue && existingQueue.quantity > 0 && Number(existingQueue.finishTime) > nowSec && existingQueue.troopType === troopType) {
+      // Stack onto existing queue
+      optimisticQueue = {
+        owner: account.address,
+        barracksId,
+        troopType,
+        quantity: existingQueue.quantity + quantity,
+        finishTime: existingQueue.finishTime + BigInt(additionalTime),
+      }
+    } else {
+      // New queue (empty or auto-collected)
+      optimisticQueue = {
+        owner: account.address,
+        barracksId,
+        troopType,
+        quantity,
+        finishTime: BigInt(nowSec + additionalTime),
+      }
     }
     setTrainingQueues([...trainingQueues.filter(q => q.barracksId !== barracksId), optimisticQueue])
 
@@ -1527,6 +1543,7 @@ export function VillageGrid() {
               const isTraining = queue && queue.quantity > 0
               const trainingRemaining = isTraining ? getUpgradeRemaining(queue.finishTime, now) : 0
               const trainingReady = isTraining && trainingRemaining <= 0
+              const busyWithType = isTraining && !trainingReady ? queue.troopType : null
 
               return (
                 <div style={styles.upgradeSection}>
@@ -1534,8 +1551,8 @@ export function VillageGrid() {
 
                   {isTraining && !trainingReady && (() => {
                     const troopName = TROOP_INFO[queue.troopType as TroopType]?.name || 'Troops'
-                    const troopTime = queue.troopType === TroopType.Barbarian ? 20 : 25
-                    const totalTime = troopTime * queue.quantity
+                    const troopTimes: Record<number, number> = { [TroopType.Barbarian]: 3, [TroopType.Archer]: 5, [TroopType.Giant]: 10 }
+                    const totalTime = (troopTimes[queue.troopType] ?? 3) * queue.quantity
                     const progress = totalTime > 0 ? Math.min(1, Math.max(0, (totalTime - trainingRemaining) / totalTime)) : 0
                     return (
                       <div>
@@ -1564,31 +1581,31 @@ export function VillageGrid() {
                     </div>
                   )}
 
-                  {!isTraining && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {Object.entries(TROOP_INFO).map(([typeStr, info]) => {
-                        const troopType = Number(typeStr) as TroopType
-                        const costPerUnit = info.cost
-                        const quantity = 5
-                        const totalCost = costPerUnit * quantity
-                        const canAfford = Number(player.gas) >= totalCost
-                        return (
-                          <button
-                            key={typeStr}
-                            style={{
-                              ...styles.upgradeBtn,
-                              opacity: canAfford && !pending ? 1 : 0.5,
-                              cursor: canAfford && !pending ? 'pointer' : 'not-allowed',
-                            }}
-                            onClick={() => canAfford && !pending && handleTrainTroops(barracksId, troopType, quantity)}
-                            disabled={!canAfford || pending}
-                          >
-                            {!canAfford ? `Not enough gas` : pending ? 'Sending...' : `Train 5x ${info.name} (${totalCost} gas)`}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: isTraining ? '6px' : '0' }}>
+                    {Object.entries(TROOP_INFO).map(([typeStr, info]) => {
+                      const troopType = Number(typeStr) as TroopType
+                      const costPerUnit = info.cost
+                      const quantity = 5
+                      const totalCost = costPerUnit * quantity
+                      const canAffordThis = Number(player.gas) >= totalCost
+                      const isBusyDifferentType = busyWithType !== null && busyWithType !== troopType
+                      const canTrain = canAffordThis && !isBusyDifferentType
+                      return (
+                        <button
+                          key={typeStr}
+                          style={{
+                            ...styles.upgradeBtn,
+                            opacity: canTrain && !pending ? 1 : 0.5,
+                            cursor: canTrain && !pending ? 'pointer' : 'not-allowed',
+                          }}
+                          onClick={() => canTrain && !pending && handleTrainTroops(barracksId, troopType, quantity)}
+                          disabled={!canTrain || pending}
+                        >
+                          {isBusyDifferentType ? `Busy` : !canAffordThis ? `Not enough gas` : pending ? 'Sending...' : `Train 5x ${info.name} (${totalCost} gas)`}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })()}

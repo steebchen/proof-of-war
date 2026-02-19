@@ -11,6 +11,7 @@ pub struct Army {
     pub giants: u16,
     pub total_space_used: u16,
     pub max_capacity: u16,
+    pub reserved_space: u16,
 }
 
 #[derive(Clone, Drop, Serde)]

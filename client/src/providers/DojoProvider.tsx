@@ -41,6 +41,7 @@ export interface Army {
   giants: number
   totalSpaceUsed: number
   maxCapacity: number
+  reservedSpace: number
 }
 
 export interface BuilderQueue {
@@ -226,6 +227,7 @@ function transformArmy(data: ClashSchemaType['clash']['Army']): Army {
     giants: parseInt(data.giants || '0', 10),
     totalSpaceUsed: parseInt(data.total_space_used || '0', 10),
     maxCapacity: parseInt(data.max_capacity || '0', 10),
+    reservedSpace: parseInt(data.reserved_space || '0', 10),
   }
 }
 
