@@ -379,7 +379,7 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
   const { address, account } = useAccount()
   const { currentBattle, startAttack, cancelAttack } = useAttack()
   const { barbarians, archers, giants } = useTroops()
-  const { fetchDefenderBuildings, fetchAllPlayers, player } = useDojo()
+  const { fetchDefenderBuildings, fetchAllPlayers, player, refreshData } = useDojo()
   const [selectedTroop, setSelectedTroop] = useState<TroopType | null>(null)
   const [targetAddress, setTargetAddress] = useState('')
   const [defenderBuildings, setDefenderBuildings] = useState<Building[]>([])
@@ -1042,8 +1042,36 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       })
 
       // Execute all in one transaction
-      await account.execute(calls, NO_FEE_DETAILS)
+      console.log('Sending multicall with', calls.length, 'calls:')
+      for (const call of calls) {
+        console.log(`  ${call.entrypoint}(${call.calldata.join(', ')})`);
+      }
+      const result = await account.execute(calls, NO_FEE_DETAILS)
+      console.log('Multicall result:', result)
+
+      // Wait for transaction to be confirmed (check receipt for revert)
+      if (result?.transaction_hash) {
+        const { RpcProvider } = await import('starknet')
+        const provider = new RpcProvider({ nodeUrl: import.meta.env.VITE_KATANA_URL || 'http://localhost:5051' })
+        try {
+          const receipt = await provider.waitForTransaction(result.transaction_hash)
+          console.log('Transaction receipt:', receipt)
+          if ('execution_status' in receipt && receipt.execution_status === 'REVERTED') {
+            const revertReason = 'revert_reason' in receipt ? receipt.revert_reason : 'Unknown reason'
+            throw new Error(`Transaction reverted: ${revertReason}`)
+          }
+        } catch (receiptError) {
+          if (receiptError instanceof Error && receiptError.message.includes('reverted')) {
+            throw receiptError
+          }
+          console.warn('Could not verify receipt:', receiptError)
+        }
+      }
+
       console.log('Battle resolved on-chain with', deployedTroops.length, 'troops and', deployedSpells.length, 'spells')
+
+      // Refresh player/army data from Torii (troops are consumed on-chain)
+      refreshData()
 
       // Build simulation initial state from deployed troops and defender buildings
       const simTroops: SimTroop[] = deployedTroops.map(t => ({
@@ -1097,7 +1125,8 @@ export function AttackScreen({ onClose }: AttackScreenProps) {
       })
     } catch (error) {
       console.error('Battle failed:', error)
-      alert('Battle failed on-chain. Check console for details.')
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      alert(`Battle failed: ${errorMsg}`)
       setPhase('deploy')
     }
     setPending(false)
