@@ -5,6 +5,7 @@ pub mod models {
     pub mod troop;
     pub mod army;
     pub mod battle;
+    pub mod clan;
 }
 
 // Systems
@@ -14,6 +15,7 @@ pub mod systems {
     pub mod resource;
     pub mod training;
     pub mod combat;
+    pub mod clan;
 }
 
 // Utils
@@ -25,4 +27,5 @@ pub mod utils {
 #[cfg(test)]
 pub mod tests {
     pub mod test_village;
+    pub mod test_clan;
 }
