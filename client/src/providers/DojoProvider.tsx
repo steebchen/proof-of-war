@@ -86,6 +86,7 @@ export interface BattleRecord {
 }
 
 interface DojoContextType {
+  sdk: SDK<ClashSchemaType> | null
   isConnected: boolean
   isLoading: boolean
   error: string | null
@@ -785,6 +786,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   return (
     <DojoContext.Provider
       value={{
+        sdk,
         isConnected,
         isLoading,
         error,

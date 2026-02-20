@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAccount } from '@starknet-react/core'
-import { init, ToriiQueryBuilder, KeysClause, MemberClause } from '@dojoengine/sdk'
-import type { SDK } from '@dojoengine/sdk'
+import { ToriiQueryBuilder, KeysClause, MemberClause } from '@dojoengine/sdk'
 import { addAddressPadding } from 'starknet'
 import { useDojo, Player } from '../../providers/DojoProvider'
 import { dojoConfig, NO_FEE_DETAILS } from '../../config/dojoConfig'
@@ -97,10 +96,9 @@ const ROLE_COLORS: Record<string, string> = {
 
 export function ClanPanel({ onClose }: ClanPanelProps) {
   const { account, address } = useAccount()
-  const { player, setPlayer, fetchAllPlayers, refreshData } = useDojo()
+  const { sdk, player, setPlayer, fetchAllPlayers, refreshData } = useDojo()
   const { addToast } = useToast()
 
-  const [sdk, setSdk] = useState<SDK<ClashSchemaType> | null>(null)
   const [view, setView] = useState<'main' | 'create' | 'browse'>('main')
   const [loading, setLoading] = useState(false)
 
@@ -115,31 +113,10 @@ export function ClanPanel({ onClose }: ClanPanelProps) {
   const [allClans, setAllClans] = useState<ClanInfo[]>([])
   const [allPlayers, setAllPlayers] = useState<Player[]>([])
 
-  // Initialize SDK
+  // Fetch clan data on mount when in a clan
   useEffect(() => {
-    init<ClashSchemaType>({
-      client: {
-        toriiUrl: dojoConfig.toriiUrl,
-        worldAddress: dojoConfig.worldAddress,
-      },
-      domain: {
-        name: 'ClashPrototype',
-        version: '1.0',
-        chainId: 'KATANA',
-        revision: '1',
-      },
-    }).then(setSdk).catch(console.error)
-  }, [])
-
-  // Fetch clan data when SDK is ready
-  useEffect(() => {
-    if (sdk && player) {
-      if (player.clanId > 0) {
-        fetchClanData(player.clanId)
-      } else {
-        setClan(null)
-        setMembers([])
-      }
+    if (sdk && player && player.clanId > 0) {
+      fetchClanData(player.clanId)
     }
   }, [sdk, player?.clanId])
 
