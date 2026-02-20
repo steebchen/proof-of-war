@@ -17,4 +17,5 @@ pub struct Player {
     pub max_builders: u8,
     pub shield_until: u64,
     pub last_attack_at: u64,
+    pub clan_id: u32,
 }
