@@ -579,8 +579,8 @@ fn test_shield_after_battle() {
     let defender_player: Player = world.read_model(defender);
     assert(defender_player.shield_until > 300, 'Shield should be set');
 
-    // Verify shield_until = current_time + 14400
-    assert(defender_player.shield_until == 300 + 14400, 'Wrong shield duration');
+    // Verify shield_until = current_time + SHIELD_DURATION (60s for dev)
+    assert(defender_player.shield_until == 300 + 60, 'Wrong shield duration');
 }
 
 #[test]
@@ -635,12 +635,12 @@ fn test_cannot_attack_shielded_player() {
     combat_dispatcher.deploy_troop(0, TroopType::Barbarian, 5, 5);
     combat_dispatcher.resolve_battle(0);
 
-    // Advance time past attack cooldown, but still within shield duration
-    starknet::testing::set_block_timestamp(600);
+    // Advance time past attack cooldown, but still within shield duration (60s, expires at 560)
+    starknet::testing::set_block_timestamp(510);
 
     // Need more troops for the second attack attempt
     training_dispatcher.train_troops(3, TroopType::Barbarian, 5);
-    starknet::testing::set_block_timestamp(700);
+    starknet::testing::set_block_timestamp(530);
     training_dispatcher.collect_trained_troops(3);
 
     // Try to attack again while shielded — should panic
