@@ -16,6 +16,7 @@ export type ClashSchemaType = {
       max_builders: string // u8 as string
       shield_until: string // u64 as string
       last_attack_at: string // u64 as string
+      clan_id: string // u32 as string
     }
     Building: {
       owner: string
@@ -93,6 +94,29 @@ export type ClashSchemaType = {
       counter_id: string // u8 as string
       next_battle_id: string // u32 as string
     }
+    Clan: {
+      clan_id: string // u32 as string
+      name: string // felt252 as hex string
+      leader: string // ContractAddress
+      member_count: string // u16 as string
+      max_members: string // u16 as string
+      total_trophies: string // u32 as string
+      required_trophies: string // u32 as string
+      is_open: boolean
+      created_at: string // u64 as string
+    }
+    ClanMember: {
+      clan_id: string // u32 as string
+      member: string // ContractAddress
+      role: string // ClanRole enum variant as string
+      joined_at: string // u64 as string
+      donated_troops: string // u32 as string
+      received_troops: string // u32 as string
+    }
+    ClanCounter: {
+      counter_id: string // u8 as string
+      next_clan_id: string // u32 as string
+    }
   }
 }
 
@@ -107,4 +131,7 @@ export const MODELS = {
   DeployedTroop: 'clash-DeployedTroop',
   BattleBuilding: 'clash-BattleBuilding',
   BattleCounter: 'clash-BattleCounter',
+  Clan: 'clash-Clan',
+  ClanMember: 'clash-ClanMember',
+  ClanCounter: 'clash-ClanCounter',
 } as const
