@@ -17,14 +17,16 @@ PROFILE="dev"
 RPC="http://localhost:5051"
 
 # Advance Katana block time so the next transaction sees the future timestamp.
-# We increase the next block timestamp AND generate that block, then increase
-# again so the sozo execute after this also gets an advanced timestamp.
+# We increase-and-generate twice to reliably push the block timestamp forward,
+# then set one more increase so the sozo execute after this gets the advanced time.
 advance_time() {
   local seconds=$1
-  curl -s -X POST "$RPC" -H "Content-Type: application/json" \
-    -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_increaseNextBlockTimestamp\",\"params\":[$seconds],\"id\":1}" > /dev/null
-  curl -s -X POST "$RPC" -H "Content-Type: application/json" \
-    -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_generateBlock\",\"params\":[],\"id\":1}" > /dev/null
+  for _ in 1 2; do
+    curl -s -X POST "$RPC" -H "Content-Type: application/json" \
+      -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_increaseNextBlockTimestamp\",\"params\":[$seconds],\"id\":1}" > /dev/null
+    curl -s -X POST "$RPC" -H "Content-Type: application/json" \
+      -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_generateBlock\",\"params\":[],\"id\":1}" > /dev/null
+  done
   curl -s -X POST "$RPC" -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_increaseNextBlockTimestamp\",\"params\":[$seconds],\"id\":1}" > /dev/null
 }
