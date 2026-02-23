@@ -17,10 +17,11 @@ The app is accessed at **https://clash.localtest.me/** (not localhost).
 
 ### 1. Start Katana (Starknet sequencer)
 ```sh
-katana --http.port 5051 --dev --dev.no-fee --http.cors_origins "https://clash.localtest.me"
+katana --http.port 5051 --dev --dev.no-fee --invoke-max-steps 25000000 --http.cors_origins "https://clash.localtest.me"
 ```
 - `--http.port 5051` (NOT `--port`)
 - `--dev.no-fee` required or migrations fail with `InsufficientResourcesForValidate`
+- `--invoke-max-steps 25000000` required or `resolve_battle` fails with "RunResources has no remaining steps"
 - `--http.cors_origins` required since app runs on clash.localtest.me
 
 ### 2. Deploy contracts
@@ -64,7 +65,7 @@ Runs on localhost:5173, accessible via https://clash.localtest.me/
 To reset everything and start fresh, restart Katana (kills all on-chain state), then redeploy and restart Torii:
 
 1. Kill Katana and Torii processes
-2. Restart Katana: `katana --http.port 5051 --dev --dev.no-fee --http.cors_origins "https://clash.localtest.me"`
+2. Restart Katana: `katana --http.port 5051 --dev --dev.no-fee --invoke-max-steps 25000000 --http.cors_origins "https://clash.localtest.me"`
 3. Redeploy: `sozo migrate --profile dev`
 4. Re-grant permissions (step 2b above)
 5. Restart Torii (step 3 above)
