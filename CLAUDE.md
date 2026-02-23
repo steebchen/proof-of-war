@@ -46,6 +46,14 @@ sozo auth grant writer --profile dev \
 - Without this, transactions fail with "does NOT have WRITER role on model"
 - **Important**: Make sure no browser tab is sending transactions while running this, or nonce conflicts will occur
 
+### 2c. Seed test data (optional)
+```sh
+bash scripts/seed.sh
+```
+- Creates 3 test villages using katana1/2/4 prefunded accounts (katana0 is reserved for browser dev connector)
+- Must run AFTER permissions are granted (step 2b)
+- Must run BEFORE Torii starts, or run after Torii so it indexes the new data
+
 ### 3. Start Torii (indexer)
 ```sh
 torii --world 0x00927fd3011efc85d029b88547d5c7334f954c44e6657073b8bf382342e66169 --rpc http://localhost:5051 --http.cors_origins "https://clash.localtest.me"
@@ -68,8 +76,9 @@ To reset everything and start fresh, restart Katana (kills all on-chain state), 
 2. Restart Katana: `katana --http.port 5051 --dev --dev.no-fee --invoke-max-steps 25000000 --http.cors_origins "https://clash.localtest.me"`
 3. Redeploy: `sozo migrate --profile dev`
 4. Re-grant permissions (step 2b above)
-5. Restart Torii (step 3 above)
-6. Reload the browser
+5. Seed test data (optional): `bash scripts/seed.sh`
+6. Restart Torii (step 3 above)
+7. Reload the browser
 
 ## Important Notes
 
