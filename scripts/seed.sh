@@ -16,14 +16,17 @@ set -e
 PROFILE="dev"
 RPC="http://localhost:5051"
 
-# Advance Katana block time by N seconds and mine an empty block,
-# so the next transaction's block timestamp reflects the advanced time.
+# Advance Katana block time so the next transaction sees the future timestamp.
+# We increase the next block timestamp AND generate that block, then increase
+# again so the sozo execute after this also gets an advanced timestamp.
 advance_time() {
   local seconds=$1
   curl -s -X POST "$RPC" -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_increaseNextBlockTimestamp\",\"params\":[$seconds],\"id\":1}" > /dev/null
   curl -s -X POST "$RPC" -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_generateBlock\",\"params\":[],\"id\":1}" > /dev/null
+  curl -s -X POST "$RPC" -H "Content-Type: application/json" \
+    -d "{\"jsonrpc\":\"2.0\",\"method\":\"dev_increaseNextBlockTimestamp\",\"params\":[$seconds],\"id\":1}" > /dev/null
 }
 
 # Place a building and immediately finish it
