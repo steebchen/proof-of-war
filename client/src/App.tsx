@@ -10,6 +10,7 @@ import { BattleResult } from './components/attack/BattleResult'
 import { Leaderboard } from './components/layout/Leaderboard'
 import { BattleLog } from './components/attack/BattleLog'
 import { PlayerStats } from './components/layout/PlayerStats'
+import { ClanPanel } from './components/clan/ClanPanel'
 import { useAttack } from './hooks/useAttack'
 import { dojoConfig, NO_FEE_DETAILS } from './config/dojoConfig'
 import { ToastProvider, useToast } from './components/ui/Toast'
@@ -30,6 +31,7 @@ function App() {
   const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [showBattleLog, setShowBattleLog] = useState(false)
   const [showStats, setShowStats] = useState(false)
+  const [showClan, setShowClan] = useState(false)
   const [isSpawning, setIsSpawning] = useState(false)
   const [spawnUsername, setSpawnUsername] = useState('')
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false)
@@ -117,6 +119,7 @@ function App() {
         maxBuilders: 5,
         shieldUntil: BigInt(0),
         lastAttackAt: BigInt(0),
+        clanId: 0,
       })
 
       const townHall: Building = {
@@ -163,6 +166,7 @@ function App() {
             maxBuilders: 5,
             shieldUntil: BigInt(0),
             lastAttackAt: BigInt(0),
+            clanId: 0,
           })
           setBuildings([townHall])
         }
@@ -296,6 +300,7 @@ function App() {
           onOpenLeaderboard={() => setShowLeaderboard(true)}
           onOpenBattleLog={() => setShowBattleLog(true)}
           onOpenStats={() => setShowStats(true)}
+          onOpenClan={() => setShowClan(true)}
         />
       )}
 
@@ -306,6 +311,8 @@ function App() {
       {showBattleLog && <BattleLog onClose={() => setShowBattleLog(false)} />}
 
       {showStats && <PlayerStats onClose={() => setShowStats(false)} />}
+
+      {showClan && <ClanPanel onClose={() => setShowClan(false)} />}
 
       {showAttack && (
         <AttackScreen

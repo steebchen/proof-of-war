@@ -19,6 +19,7 @@ export interface Player {
   maxBuilders: number
   shieldUntil: bigint
   lastAttackAt: bigint
+  clanId: number
 }
 
 export interface Building {
@@ -85,6 +86,7 @@ export interface BattleRecord {
 }
 
 interface DojoContextType {
+  sdk: SDK<ClashSchemaType> | null
   isConnected: boolean
   isLoading: boolean
   error: string | null
@@ -183,6 +185,7 @@ function transformPlayer(data: ClashSchemaType['clash']['Player'], address: stri
     maxBuilders: parseInt(data.max_builders ?? '1', 10),
     shieldUntil: BigInt(data.shield_until ?? '0'),
     lastAttackAt: BigInt(data.last_attack_at ?? '0'),
+    clanId: parseInt(data.clan_id ?? '0', 10),
   }
 }
 
@@ -783,6 +786,7 @@ export function DojoProvider({ children }: { children: ReactNode }) {
   return (
     <DojoContext.Provider
       value={{
+        sdk,
         isConnected,
         isLoading,
         error,

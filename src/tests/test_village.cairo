@@ -12,11 +12,16 @@ use clash_prototype::models::army::{Army, BuilderQueue, m_Army, m_BuilderQueue, 
 use clash_prototype::models::battle::{
     m_Battle, m_DeployedTroop, m_BattleBuilding, m_BattleCounter, m_DeployedSpell, SpellType,
 };
+use clash_prototype::models::clan::{m_Clan, m_ClanMember, m_ClanCounter};
 use clash_prototype::systems::village::{village, IVillageDispatcher, IVillageDispatcherTrait, e_PlayerSpawned};
 use clash_prototype::systems::building::{building_system, IBuildingDispatcher, IBuildingDispatcherTrait, e_BuildingPlaced, e_BuildingUpgraded, e_BuildingRemoved, e_BuildingRepaired};
 use clash_prototype::systems::training::{training_system, ITrainingDispatcher, ITrainingDispatcherTrait, e_TroopsTrainingStarted, e_TroopsCollected};
 use clash_prototype::systems::resource::{resource_system, IResourceDispatcher, IResourceDispatcherTrait, e_ResourcesCollected};
 use clash_prototype::systems::combat::{combat_system, e_BattleStarted, e_TroopDeployed, e_SpellDeployed, e_BattleEnded};
+use clash_prototype::systems::clan::{
+    clan_system, e_ClanCreated, e_MemberJoined, e_MemberLeft, e_MemberPromoted, e_MemberDemoted,
+    e_MemberKicked, e_LeadershipTransferred,
+};
 use clash_prototype::models::troop::TroopType;
 use clash_prototype::systems::combat::{ICombatDispatcher, ICombatDispatcherTrait};
 use clash_prototype::utils::config::{STARTING_DIAMOND, STARTING_GAS};
@@ -35,6 +40,9 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Model(m_BattleBuilding::TEST_CLASS_HASH),
             TestResource::Model(m_BattleCounter::TEST_CLASS_HASH),
             TestResource::Model(m_DeployedSpell::TEST_CLASS_HASH),
+            TestResource::Model(m_Clan::TEST_CLASS_HASH),
+            TestResource::Model(m_ClanMember::TEST_CLASS_HASH),
+            TestResource::Model(m_ClanCounter::TEST_CLASS_HASH),
             TestResource::Event(e_PlayerSpawned::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingPlaced::TEST_CLASS_HASH),
             TestResource::Event(e_BuildingUpgraded::TEST_CLASS_HASH),
@@ -47,11 +55,19 @@ fn namespace_def() -> NamespaceDef {
             TestResource::Event(e_TroopDeployed::TEST_CLASS_HASH),
             TestResource::Event(e_SpellDeployed::TEST_CLASS_HASH),
             TestResource::Event(e_BattleEnded::TEST_CLASS_HASH),
+            TestResource::Event(e_ClanCreated::TEST_CLASS_HASH),
+            TestResource::Event(e_MemberJoined::TEST_CLASS_HASH),
+            TestResource::Event(e_MemberLeft::TEST_CLASS_HASH),
+            TestResource::Event(e_MemberPromoted::TEST_CLASS_HASH),
+            TestResource::Event(e_MemberDemoted::TEST_CLASS_HASH),
+            TestResource::Event(e_MemberKicked::TEST_CLASS_HASH),
+            TestResource::Event(e_LeadershipTransferred::TEST_CLASS_HASH),
             TestResource::Contract(village::TEST_CLASS_HASH),
             TestResource::Contract(building_system::TEST_CLASS_HASH),
             TestResource::Contract(training_system::TEST_CLASS_HASH),
             TestResource::Contract(resource_system::TEST_CLASS_HASH),
             TestResource::Contract(combat_system::TEST_CLASS_HASH),
+            TestResource::Contract(clan_system::TEST_CLASS_HASH),
         ]
             .span(),
     };
@@ -69,6 +85,8 @@ fn contract_defs() -> Span<ContractDef> {
         ContractDefTrait::new(@"clash", @"resource_system")
             .with_writer_of([dojo::utils::bytearray_hash(@"clash")].span()),
         ContractDefTrait::new(@"clash", @"combat_system")
+            .with_writer_of([dojo::utils::bytearray_hash(@"clash")].span()),
+        ContractDefTrait::new(@"clash", @"clan_system")
             .with_writer_of([dojo::utils::bytearray_hash(@"clash")].span()),
     ].span()
 }
